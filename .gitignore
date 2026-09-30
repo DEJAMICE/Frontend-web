@@ -1,0 +1,16 @@
+node_modules
+.pnp
+.pnp.js
+dist
+local
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.env.local
+.env.*.local
