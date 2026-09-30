@@ -8,7 +8,7 @@ Aplicación Web de Monitoreo y Gestión Ciudadana para la plataforma **SafeSigna
 
 ---
 
-## 🏗️ Tech Stack
+## Tech Stack
 
 * **Framework:** Vue 3 (Composition API / `<script setup>`)
 * **Build Tool:** Vite
@@ -19,9 +19,9 @@ Aplicación Web de Monitoreo y Gestión Ciudadana para la plataforma **SafeSigna
 
 ---
 
-## 👥 Responsabilidades en el Repositorio
+## Responsabilidades en el Repositorio
 
-* **Persona 3 (Mathias Andree Cárdenas Huamán):**
+* **Persona 3:**
   * Diseño e implementación de la capa central de integración de servicios HTTP (`src/services/api.js`).
   * Módulos de servicios para Alertas SOS (`alerts.service.js`) y Seguimiento de Rutas (`tracking.service.js`).
   * Soporte de interceptores JWT, gestión de errores y Mock Data para desacoplar el desarrollo de frontend y backend.
@@ -32,7 +32,7 @@ Aplicación Web de Monitoreo y Gestión Ciudadana para la plataforma **SafeSigna
 
 ---
 
-## 🌿 Metodología GitFlow
+## Metodología GitFlow
 
 Este repositorio aplica el flujo **GitFlow**:
 * `main`: Código en producción y releases estables.
@@ -41,7 +41,7 @@ Este repositorio aplica el flujo **GitFlow**:
 
 ---
 
-## 🚀 Instalación y Ejecución
+## Instalación y Ejecución
 
 ```bash
 # 1. Instalar dependencias
