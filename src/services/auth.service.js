@@ -19,16 +19,22 @@ export const authService = {
     if (USE_MOCK) {
       const mockToken = 'mock_jwt_token_safesignal_2026';
       localStorage.setItem('safesignal_token', mockToken);
+      localStorage.setItem('jwt_token', mockToken);
       localStorage.setItem('safesignal_user', JSON.stringify(mockCurrentUser));
-      return { success: true, token: mockToken, user: mockCurrentUser };
+      localStorage.setItem('user_profile', JSON.stringify(mockCurrentUser));
+      return { success: true, token: mockToken, accessToken: mockToken, user: mockCurrentUser };
     }
 
     const response = await apiClient.post('/auth/login', credentials);
-    if (response.data?.token) {
-      localStorage.setItem('safesignal_token', response.data.token);
-      localStorage.setItem('safesignal_user', JSON.stringify(response.data.user || {}));
+    const token = response.data?.token || response.data?.accessToken;
+    const user = response.data?.user || {};
+    if (token) {
+      localStorage.setItem('safesignal_token', token);
+      localStorage.setItem('jwt_token', token);
+      localStorage.setItem('safesignal_user', JSON.stringify(user));
+      localStorage.setItem('user_profile', JSON.stringify(user));
     }
-    return response.data;
+    return { ...response.data, token, user };
   },
 
   /**
@@ -37,16 +43,24 @@ export const authService = {
   async register(registrationData) {
     if (USE_MOCK) {
       const mockToken = 'mock_jwt_token_safesignal_2026';
+      const user = { ...mockCurrentUser, ...registrationData };
       localStorage.setItem('safesignal_token', mockToken);
-      return { success: true, token: mockToken, user: { ...mockCurrentUser, ...registrationData } };
+      localStorage.setItem('jwt_token', mockToken);
+      localStorage.setItem('safesignal_user', JSON.stringify(user));
+      localStorage.setItem('user_profile', JSON.stringify(user));
+      return { success: true, token: mockToken, accessToken: mockToken, user };
     }
 
     const response = await apiClient.post('/auth/register', registrationData);
-    if (response.data?.token) {
-      localStorage.setItem('safesignal_token', response.data.token);
-      localStorage.setItem('safesignal_user', JSON.stringify(response.data.user || {}));
+    const token = response.data?.token || response.data?.accessToken;
+    const user = response.data?.user || {};
+    if (token) {
+      localStorage.setItem('safesignal_token', token);
+      localStorage.setItem('jwt_token', token);
+      localStorage.setItem('safesignal_user', JSON.stringify(user));
+      localStorage.setItem('user_profile', JSON.stringify(user));
     }
-    return response.data;
+    return { ...response.data, token, user };
   },
 
   /**
@@ -57,8 +71,13 @@ export const authService = {
       return { success: true, data: mockCurrentUser };
     }
 
-    const response = await apiClient.get('/users/profile');
-    return response.data;
+    try {
+      const response = await apiClient.get('/users/me');
+      return response.data;
+    } catch {
+      const fallback = await apiClient.get('/users/profile');
+      return fallback.data;
+    }
   },
 
   /**
@@ -68,11 +87,17 @@ export const authService = {
     if (USE_MOCK) {
       Object.assign(mockCurrentUser, profileData);
       localStorage.setItem('safesignal_user', JSON.stringify(mockCurrentUser));
+      localStorage.setItem('user_profile', JSON.stringify(mockCurrentUser));
       return { success: true, data: mockCurrentUser, message: 'Perfil actualizado con éxito' };
     }
 
-    const response = await apiClient.put('/users/profile', profileData);
-    return response.data;
+    try {
+      const response = await apiClient.put('/users/me', profileData);
+      return response.data;
+    } catch {
+      const fallback = await apiClient.put('/users/profile', profileData);
+      return fallback.data;
+    }
   },
 
   /**
@@ -80,7 +105,9 @@ export const authService = {
    */
   logout() {
     localStorage.removeItem('safesignal_token');
+    localStorage.removeItem('jwt_token');
     localStorage.removeItem('safesignal_user');
+    localStorage.removeItem('user_profile');
     sessionStorage.removeItem('safesignal_token');
   },
 

@@ -30,7 +30,7 @@ const apiClient = axios.create({
  */
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('safesignal_token') || sessionStorage.getItem('safesignal_token');
+    const token = localStorage.getItem('safesignal_token') || sessionStorage.getItem('safesignal_token') || localStorage.getItem('jwt_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -56,7 +56,9 @@ apiClient.interceptors.response.use(
     if (status === 401) {
       console.warn('[API Auth]: Sesión expirada o token inválido. Redirigiendo a inicio de sesión.');
       localStorage.removeItem('safesignal_token');
+      localStorage.removeItem('jwt_token');
       localStorage.removeItem('safesignal_user');
+      localStorage.removeItem('user_profile');
       // Disparar evento para que Vue Router o Pinia manejen la redirección
       window.dispatchEvent(new CustomEvent('safesignal:unauthorized'));
     } else if (status === 403) {
