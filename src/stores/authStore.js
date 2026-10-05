@@ -1,10 +1,20 @@
 import { defineStore } from 'pinia';
 import api from '../services/api';
 
+function getInitialUser() {
+    try {
+        const raw = localStorage.getItem('safesignal_user') || localStorage.getItem('user_profile');
+        if (!raw || raw === 'undefined' || raw === 'null') return null;
+        return JSON.parse(raw);
+    } catch {
+        return null;
+    }
+}
+
 export const useAuthStore = defineStore('auth', {
     state: () => ({
         token: localStorage.getItem('safesignal_token') || localStorage.getItem('jwt_token') || null,
-        user: JSON.parse(localStorage.getItem('safesignal_user') || localStorage.getItem('user_profile') || 'null'),
+        user: getInitialUser(),
     }),
     getters: {
         isAuthenticated: (state) => !!state.token,
