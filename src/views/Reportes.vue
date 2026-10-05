@@ -1,52 +1,17 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, watch, onMounted } from 'vue';
 import Toast from 'primevue/toast';
 import { useToast } from 'primevue/usetoast';
+import { reportsService } from '@/services';
 
 const toast = useToast();
 
 const activeTab = ref('comunitarios'); // 'comunitarios' | 'mis_reportes'
 const isReportModalOpen = ref(false);
+const isLoading = ref(false);
+const isSaving = ref(false);
 
-const reportsList = ref([
-  {
-    id: 1,
-    category: 'Robo',
-    time: 'Hoy · 20:32',
-    address: 'Av. Túpac Amaru 1450, Comas',
-    description: 'Reportan arrebato de celular a peatón cerca del paradero. Precaución al caminar solo.',
-    confirmedCount: 15,
-    validated: false
-  },
-  {
-    id: 2,
-    category: 'Zona Oscura',
-    time: 'Hoy · 19:05',
-    address: 'Jr. Las Gardenias 220, Los Olivos',
-    description: 'Alumbrado público apagado en toda la cuadra desde hace tres días.',
-    confirmedCount: 8,
-    validated: false
-  },
-  {
-    id: 3,
-    category: 'Robo',
-    secondaryCategory: 'Zona Oscura',
-    time: 'Ayer · 22:47',
-    address: 'Av. Universitaria 3800, SMP',
-    description: 'Varios vecinos reportan asaltos recurrentes en el cruce mal iluminado.',
-    confirmedCount: 23,
-    validated: false
-  },
-  {
-    id: 4,
-    category: 'Acoso',
-    time: 'Ayer · 18:20',
-    address: 'Parque Zonal Sinchi Roca, Comas',
-    description: 'Persona sospechosa merodeando la zona de juegos infantiles por la tarde.',
-    confirmedCount: 6,
-    validated: false
-  }
-]);
+const reportsList = ref([]);
 
 const newReport = ref({
   type: 'Robo',
@@ -54,40 +19,90 @@ const newReport = ref({
   description: ''
 });
 
-function handleValidate(report) {
-  if (!report.validated) {
-    report.confirmedCount++;
-    report.validated = true;
-    toast.add({ severity: 'success', summary: 'Reporte Validado', detail: 'Tu confirmación ayuda a alertar a la comunidad.', life: 2500 });
-  } else {
-    report.confirmedCount--;
-    report.validated = false;
+function formatTime(dateStr) {
+  if (!dateStr) return 'Reciente';
+  const d = new Date(dateStr);
+  const now = new Date();
+  const diffHours = Math.floor((now - d) / 3600000);
+  if (diffHours < 1) return `Hoy · hace ${Math.max(1, Math.floor((now - d) / 60000))} min`;
+  if (diffHours < 24) return `Hoy · ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+  return `${d.toLocaleDateString()} · ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+}
+
+async function loadReports() {
+  isLoading.value = true;
+  try {
+    if (activeTab.value === 'mis_reportes') {
+      const res = await reportsService.getMyReports();
+      reportsList.value = Array.isArray(res) ? res : [];
+    } else {
+      const res = await reportsService.getReports();
+      reportsList.value = Array.isArray(res) ? res : [];
+    }
+  } catch (err) {
+    console.error('Error cargando reportes del backend:', err);
+    toast.add({ severity: 'warn', summary: 'Conexión Backend', detail: 'No se pudieron sincronizar los reportes con la API.', life: 3000 });
+  } finally {
+    isLoading.value = false;
   }
 }
 
-function handleRefute(report) {
-  toast.add({ severity: 'warn', summary: 'Voto Registrado', detail: 'Has marcado este reporte como dudoso.', life: 2500 });
+watch(activeTab, () => {
+  loadReports();
+});
+
+onMounted(() => {
+  loadReports();
+});
+
+async function handleValidate(report) {
+  try {
+    const updated = await reportsService.validateReport(report.id);
+    if (updated) {
+      report.confirmedCount = updated.confirmedCount;
+      report.validatedByMe = updated.validatedByMe;
+      toast.add({ severity: 'success', summary: 'Reporte Validado', detail: 'Tu confirmación ha sido guardada en la base de datos.', life: 2500 });
+    }
+  } catch (err) {
+    toast.add({ severity: 'error', summary: 'Error', detail: 'No se pudo registrar la validación en el servidor.' });
+  }
 }
 
-function handleSaveReport() {
-  if (!newReport.value.address || !newReport.value.description) {
+async function handleRefute(report) {
+  try {
+    const updated = await reportsService.refuteReport(report.id);
+    if (updated) {
+      report.refutedCount = updated.refutedCount;
+      toast.add({ severity: 'warn', summary: 'Voto Registrado', detail: 'Has marcado este reporte como dudoso en el servidor.', life: 2500 });
+    }
+  } catch (err) {
+    toast.add({ severity: 'error', summary: 'Error', detail: 'No se pudo registrar el voto en el servidor.' });
+  }
+}
+
+async function handleSaveReport() {
+  if (!newReport.value.address?.trim() || !newReport.value.description?.trim()) {
     toast.add({ severity: 'warn', summary: 'Campos requeridos', detail: 'Ingresa la ubicación y descripción del incidente.', life: 3000 });
     return;
   }
 
-  reportsList.value.unshift({
-    id: Date.now(),
-    category: newReport.value.type,
-    time: 'Hace un momento',
-    address: newReport.value.address,
-    description: newReport.value.description,
-    confirmedCount: 1,
-    validated: true
-  });
+  isSaving.value = true;
+  try {
+    const created = await reportsService.createReport({
+      category: newReport.value.type,
+      address: newReport.value.address.trim(),
+      description: newReport.value.description.trim()
+    });
 
-  isReportModalOpen.value = false;
-  newReport.value = { type: 'Robo', address: '', description: '' };
-  toast.add({ severity: 'success', summary: 'Incidente Reportado', detail: 'Tu alerta ha sido publicada para la red de vecinos.', life: 3500 });
+    reportsList.value.unshift(created);
+    isReportModalOpen.value = false;
+    newReport.value = { type: 'Robo', address: '', description: '' };
+    toast.add({ severity: 'success', summary: 'Incidente Reportado', detail: 'Tu alerta ha sido guardada y persistida en el backend.', life: 3500 });
+  } catch (err) {
+    toast.add({ severity: 'error', summary: 'Error', detail: err.message || 'Error al persistir el reporte en el backend.' });
+  } finally {
+    isSaving.value = false;
+  }
 }
 </script>
 
@@ -126,8 +141,20 @@ function handleSaveReport() {
       </button>
     </div>
 
+    <!-- Loading / Empty states -->
+    <div v-if="isLoading" class="text-center py-6 text-slate-400">
+      <i class="pi pi-spin pi-spinner text-2xl mb-2 block"></i>
+      <p class="m-0">Sincronizando reportes comunitarios desde la base de datos...</p>
+    </div>
+
+    <div v-else-if="reportsList.length === 0" class="text-center py-8 text-slate-400 bg-white border-round-xl border-1 border-slate-200">
+      <i class="pi pi-shield text-3xl text-teal-600 mb-2 block"></i>
+      <p class="font-bold text-slate-700 m-0">No hay reportes registrados en esta sección.</p>
+      <p class="text-sm text-slate-500 mt-1">Sé el primero en advertir a tus vecinos sobre alguna zona de riesgo o incidente.</p>
+    </div>
+
     <!-- Grid of Reports Cards matching Reportes.png -->
-    <div class="reports-grid">
+    <div v-else class="reports-grid">
       <div v-for="rep in reportsList" :key="rep.id" class="report-card">
         <!-- Badges & Time -->
         <div class="card-top-tags mb-2">
@@ -135,7 +162,7 @@ function handleSaveReport() {
             <span class="tag-pill category-tag">{{ rep.category }}</span>
             <span v-if="rep.secondaryCategory" class="tag-pill category-secondary-tag">{{ rep.secondaryCategory }}</span>
           </div>
-          <span class="report-time">{{ rep.time }}</span>
+          <span class="report-time">{{ rep.time || formatTime(rep.createdAt) }}</span>
         </div>
 
         <!-- Address with map icon -->
@@ -165,15 +192,20 @@ function handleSaveReport() {
         <div class="card-actions-row">
           <button
             class="action-btn-validate"
-            :class="{ active: rep.validated }"
+            :class="{ active: rep.validatedByMe || rep.validated }"
             @click="handleValidate(rep)"
+            title="Confirmar veracidad del reporte"
           >
             <span>Validar ✓</span>
           </button>
-          <button class="action-btn-refute" @click="handleRefute(rep)">
-            <span>Refutar X</span>
+          <button
+            class="action-btn-refute"
+            @click="handleRefute(rep)"
+            title="Marcar como dudoso"
+          >
+            <span>Refutar ✕</span>
           </button>
-          <button class="action-btn-map">
+          <button class="action-btn-map" @click="toast.add({ severity: 'info', summary: 'Ubicación', detail: rep.address, life: 2500 })">
             <span>Ver en mapa</span>
           </button>
         </div>

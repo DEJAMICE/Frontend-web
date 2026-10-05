@@ -10,18 +10,16 @@
 
 import axios from 'axios';
 
-// Base URL configurable por variables de entorno de Vite (.env) o autodetección
-const defaultBaseUrl = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
-  ? 'https://backend-api-21zu.onrender.com/api/v1'
-  : 'http://localhost:5000/api/v1';
+// Base URL configurable por variables de entorno de Vite (.env) o por defecto en Render
+const defaultBaseUrl = 'https://backend-api-21zu.onrender.com/api/v1';
 
 const BASE_URL = import.meta.env?.VITE_API_BASE_URL || defaultBaseUrl;
-export const USE_MOCK = import.meta.env?.VITE_USE_MOCK === 'true';
+export const USE_MOCK = false; // Desactivado: comunicación 100% real con el backend
 
 // Instancia principal de Axios
 const apiClient = axios.create({
   baseURL: BASE_URL,
-  timeout: 12000,
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
@@ -56,14 +54,17 @@ apiClient.interceptors.response.use(
   },
   (error) => {
     const status = error.response ? error.response.status : null;
+    const requestUrl = error.config?.url || '';
 
-    if (status === 401) {
+    // Solo cerrar sesión si la petición fallida NO es login o register
+    const isAuthEndpoint = requestUrl.includes('/auth/login') || requestUrl.includes('/auth/register');
+
+    if (status === 401 && !isAuthEndpoint) {
       console.warn('[API Auth]: Sesión expirada o token inválido. Redirigiendo a inicio de sesión.');
       localStorage.removeItem('safesignal_token');
       localStorage.removeItem('jwt_token');
       localStorage.removeItem('safesignal_user');
       localStorage.removeItem('user_profile');
-      // Disparar evento para que Vue Router o Pinia manejen la redirección
       window.dispatchEvent(new CustomEvent('safesignal:unauthorized'));
     } else if (status === 403) {
       console.error('[API Auth]: Acceso denegado. Permisos insuficientes.');

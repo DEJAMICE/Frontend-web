@@ -29,6 +29,7 @@ const routePresets = [
 const selectedPresetIndex = ref(0);
 const origin = ref({ ...routePresets[0].origin });
 const destination = ref({ ...routePresets[0].destination });
+const selectionMode = ref('destination'); // 'destination' | 'origin'
 
 const travelMode = ref('walking'); // walking | cycling | driving
 const activeRouteType = ref('safe'); // 'safe' | 'alternative'
@@ -37,8 +38,8 @@ const isCalculating = ref(false);
 const isNavigating = ref(false);
 
 const routeMetrics = ref({
-  distanceKm: '2.4',
-  durationMin: 26,
+  distanceKm: '2.5',
+  durationMin: 32,
   safetyScore: 94,
   zonesAvoided: 2
 });
@@ -54,6 +55,52 @@ function applyPreset(index) {
     severity: 'info',
     summary: 'Recorrido Configurado',
     detail: `Trazando calles para ${p.name}`,
+    life: 2500
+  });
+}
+
+function handlePointSelected(coords) {
+  isNavigating.value = false;
+  if (selectionMode.value === 'destination') {
+    selectedPresetIndex.value = -1;
+    destination.value = {
+      lat: coords.lat,
+      lng: coords.lng,
+      name: `Destino: [${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}]`
+    };
+    toast.add({
+      severity: 'info',
+      summary: 'Destino Actualizado',
+      detail: 'Nuevo punto fijado. Recalculando ruta en tiempo real...',
+      life: 2500
+    });
+  } else {
+    selectedPresetIndex.value = -1;
+    origin.value = {
+      lat: coords.lat,
+      lng: coords.lng,
+      name: `Origen: [${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}]`
+    };
+    toast.add({
+      severity: 'info',
+      summary: 'Origen Actualizado',
+      detail: 'Nuevo punto de salida fijado. Recalculando ruta...',
+      life: 2500
+    });
+  }
+}
+
+function setTravelMode(mode) {
+  travelMode.value = mode;
+  isNavigating.value = false;
+  // Forzar recálculo reactivo
+  origin.value = { ...origin.value };
+  destination.value = { ...destination.value };
+  const modeLabel = mode === 'walking' ? 'a pie' : mode === 'cycling' ? 'en bicicleta' : 'en vehículo';
+  toast.add({
+    severity: 'info',
+    summary: 'Modo Actualizado',
+    detail: `Trazando calles y calculando tiempo de viaje ${modeLabel}...`,
     life: 2500
   });
 }
@@ -196,6 +243,29 @@ function handleStopNavigation() {
             </div>
           </div>
 
+          <!-- Selector de Modo de Clic en el Mapa -->
+          <div class="form-group mb-3">
+            <label class="form-label">Al hacer clic en el mapa fijar:</label>
+            <div class="target-mode-buttons">
+              <button
+                type="button"
+                class="target-mode-btn"
+                :class="{ active: selectionMode === 'destination' }"
+                @click="selectionMode = 'destination'"
+              >
+                <i class="pi pi-flag text-rose-500 mr-1"></i> Punto Destino (B)
+              </button>
+              <button
+                type="button"
+                class="target-mode-btn"
+                :class="{ active: selectionMode === 'origin' }"
+                @click="selectionMode = 'origin'"
+              >
+                <i class="pi pi-map-marker text-teal-600 mr-1"></i> Punto Origen (A)
+              </button>
+            </div>
+          </div>
+
           <!-- Modo de Transporte -->
           <div class="form-group mb-3">
             <label class="form-label">Modo de Transporte:</label>
@@ -203,21 +273,21 @@ function handleStopNavigation() {
               <button
                 class="mode-tab"
                 :class="{ active: travelMode === 'walking' }"
-                @click="travelMode = 'walking'"
+                @click="setTravelMode('walking')"
               >
                 <i class="pi pi-user mr-1"></i> A pie
               </button>
               <button
                 class="mode-tab"
                 :class="{ active: travelMode === 'cycling' }"
-                @click="travelMode = 'cycling'"
+                @click="setTravelMode('cycling')"
               >
                 <i class="pi pi-compass mr-1"></i> Bicicleta
               </button>
               <button
                 class="mode-tab"
                 :class="{ active: travelMode === 'driving' }"
-                @click="travelMode = 'driving'"
+                @click="setTravelMode('driving')"
               >
                 <i class="pi pi-car mr-1"></i> Vehicular
               </button>
@@ -244,7 +314,7 @@ function handleStopNavigation() {
             <div class="metrics-grid">
               <div class="metric-item">
                 <span class="metric-val">{{ routeMetrics.durationMin }} min</span>
-                <span class="metric-label">{{ travelMode === 'walking' ? 'a pie' : 'tiempo' }}</span>
+                <span class="metric-label">{{ travelMode === 'walking' ? 'a pie' : travelMode === 'cycling' ? 'en bicicleta' : 'en vehículo' }}</span>
               </div>
               <div class="metric-separator"></div>
               <div class="metric-item">
@@ -304,6 +374,7 @@ function handleStopNavigation() {
             :travelMode="travelMode"
             :activeRoute="activeRouteType"
             :isNavigating="isNavigating"
+            @pointSelected="handlePointSelected"
             @routeCalculated="handleRouteCalculated"
           />
         </div>
@@ -445,6 +516,39 @@ function handleStopNavigation() {
   border-color: #00A896;
   color: #0E444E;
   font-weight: 600;
+}
+
+.target-mode-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.target-mode-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 10px;
+  background-color: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.target-mode-btn:hover {
+  background-color: #F1F5F9;
+  border-color: #CBD5E1;
+}
+
+.target-mode-btn.active {
+  background-color: #E6F7F5;
+  border-color: #00A896;
+  color: #0E444E;
+  box-shadow: 0 1px 3px rgba(0, 168, 150, 0.15);
 }
 
 .input-icon-box {

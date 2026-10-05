@@ -1,7 +1,8 @@
 <script setup>
-import { computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '../stores/authStore';
+import { notificationsService } from '../services';
 
 const router = useRouter();
 const route = useRoute();
@@ -65,6 +66,79 @@ const currentTitle = computed(() => {
 function isActive(path) {
   return route.path === path;
 }
+
+// Notificaciones reales conectadas al Backend
+const isNotifOpen = ref(false);
+const notificationsList = ref([]);
+const unreadCount = ref(0);
+const isLoadingNotifs = ref(false);
+
+async function loadNotifications() {
+  try {
+    isLoadingNotifs.value = true;
+    const [list, count] = await Promise.all([
+      notificationsService.getNotifications(),
+      notificationsService.getUnreadCount()
+    ]);
+    notificationsList.value = Array.isArray(list) ? list : [];
+    unreadCount.value = typeof count === 'number' ? count : (list.filter(n => !n.isRead).length);
+  } catch (err) {
+    console.warn('Error cargando notificaciones del backend:', err);
+  } finally {
+    isLoadingNotifs.value = false;
+  }
+}
+
+function toggleNotifications() {
+  isNotifOpen.value = !isNotifOpen.value;
+  if (isNotifOpen.value) {
+    loadNotifications();
+  }
+}
+
+async function handleMarkAsRead(notif) {
+  if (notif.isRead) return;
+  try {
+    await notificationsService.markAsRead(notif.id);
+    notif.isRead = true;
+    if (unreadCount.value > 0) unreadCount.value--;
+  } catch (err) {
+    console.error('Error al marcar notificación:', err);
+  }
+}
+
+async function handleMarkAllAsRead() {
+  try {
+    await notificationsService.markAllAsRead();
+    notificationsList.value.forEach(n => n.isRead = true);
+    unreadCount.value = 0;
+  } catch (err) {
+    console.error('Error al marcar todas las notificaciones:', err);
+  }
+}
+
+function getUserInitials(name) {
+  if (!name) return 'SS';
+  return name.split(' ').filter(Boolean).map(n => n[0]).slice(0, 2).join('').toUpperCase();
+}
+
+function formatNotifTime(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  const now = new Date();
+  const diffMinutes = Math.floor((now - d) / 60000);
+  if (diffMinutes < 1) return 'Hace un momento';
+  if (diffMinutes < 60) return `Hace ${diffMinutes} min`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `Hace ${diffHours} h`;
+  return d.toLocaleDateString();
+}
+
+onMounted(() => {
+  // Sincronizar perfil real del usuario autenticado desde /users/me
+  authStore.fetchUserProfile();
+  loadNotifications();
+});
 </script>
 
 <template>
@@ -127,20 +201,75 @@ function isActive(path) {
             <span>Conectado ✓</span>
           </div>
 
-          <!-- Notification Bell matching mockup -->
-          <div class="notification-bell-btn">
-            <i class="pi pi-bell"></i>
-            <span class="notification-badge-dot"></span>
+          <!-- Notification Bell con contador y popover interactivo -->
+          <div class="notification-wrapper">
+            <button
+              class="notification-bell-btn"
+              :class="{ 'has-unread': unreadCount > 0 }"
+              @click="toggleNotifications"
+              title="Ver notificaciones"
+            >
+              <i class="pi pi-bell"></i>
+              <span v-if="unreadCount > 0" class="notification-badge-count">{{ unreadCount > 9 ? '9+' : unreadCount }}</span>
+              <span v-else class="notification-badge-dot"></span>
+            </button>
+
+            <!-- Dropdown de Notificaciones conectadas al Backend -->
+            <div v-if="isNotifOpen" class="notifications-dropdown-menu">
+              <div class="notif-header">
+                <div class="notif-title">
+                  <i class="pi pi-bell mr-1"></i> Notificaciones
+                </div>
+                <button
+                  v-if="unreadCount > 0"
+                  class="btn-mark-all-read"
+                  @click="handleMarkAllAsRead"
+                >
+                  Marcar leídas
+                </button>
+              </div>
+
+              <div v-if="isLoadingNotifs" class="notif-loading">
+                <i class="pi pi-spin pi-spinner mr-2"></i> Cargando...
+              </div>
+
+              <div v-else-if="notificationsList.length === 0" class="notif-empty">
+                <i class="pi pi-check-circle notif-empty-icon mb-1"></i>
+                <p class="m-0 text-sm">No tienes notificaciones pendientes.</p>
+              </div>
+
+              <div v-else class="notif-items-list">
+                <div
+                  v-for="notif in notificationsList"
+                  :key="notif.id"
+                  class="notif-item"
+                  :class="{ 'unread': !notif.isRead }"
+                  @click="handleMarkAsRead(notif)"
+                >
+                  <div class="notif-icon-col">
+                    <span class="notif-type-dot" :class="'type-' + notif.type?.toLowerCase()"></span>
+                  </div>
+                  <div class="notif-content-col">
+                    <div class="notif-item-title">{{ notif.title }}</div>
+                    <div class="notif-item-msg">{{ notif.message }}</div>
+                    <div class="notif-item-time">{{ formatNotifTime(notif.createdAt) }}</div>
+                  </div>
+                  <div v-if="!notif.isRead" class="unread-glow-dot"></div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <!-- User Info matching mockup -->
-          <div class="user-profile-widget" @click="router.push('/app/perfil')">
+          <!-- User Info matching mockup con datos reales del Backend -->
+          <div class="user-profile-widget" @click="router.push('/app/perfil')" title="Ver mi perfil">
             <div class="user-avatar-initials">
-              {{ (authStore.user?.fullName || 'CM').split(' ').map(n=>n[0]).slice(0,2).join('') }}
+              {{ getUserInitials(authStore.user?.fullName) }}
             </div>
             <div class="user-names-col">
-              <span class="widget-name font-bold">{{ authStore.user?.fullName || 'Carlos Mendoza' }}</span>
-              <span class="widget-role text-xs text-slate-400">{{ authStore.user?.subscriptionPlan || 'Administrador' }}</span>
+              <span class="widget-name font-bold">{{ authStore.user?.fullName || 'Usuario Protegido' }}</span>
+              <span class="widget-role text-xs text-slate-400">
+                {{ authStore.user?.profileType === 'Student' ? 'Estudiante Universitario' : authStore.user?.profileType === 'NightWorker' ? 'Trabajador Nocturno' : 'Usuario Protegido' }}
+              </span>
             </div>
           </div>
 
@@ -467,6 +596,10 @@ function isActive(path) {
   font-weight: 600;
 }
 
+.notification-wrapper {
+  position: relative;
+}
+
 .notification-bell-btn {
   position: relative;
   width: 34px;
@@ -480,6 +613,11 @@ function isActive(path) {
   justify-content: center;
   cursor: pointer;
   font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.notification-bell-btn:hover {
+  background-color: rgba(255, 255, 255, 0.16);
 }
 
 .notification-badge-dot {
@@ -490,6 +628,158 @@ function isActive(path) {
   height: 6px;
   border-radius: 50%;
   background-color: #EF4444;
+}
+
+.notification-badge-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background-color: #EF4444;
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 1px 5px;
+  line-height: 1;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.notifications-dropdown-menu {
+  position: absolute;
+  top: 44px;
+  right: 0;
+  width: 340px;
+  max-height: 420px;
+  background: #FFFFFF;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  border: 1px solid #E2E8F0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: #1E293B;
+  animation: fadeInDown 0.15s ease-out;
+}
+
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.notif-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #F8FAFC;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.notif-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #0E444E;
+  display: flex;
+  align-items: center;
+}
+
+.btn-mark-all-read {
+  background: none;
+  border: none;
+  color: #00A896;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.btn-mark-all-read:hover {
+  background: #E6F7F5;
+  text-decoration: underline;
+}
+
+.notif-loading, .notif-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: #64748B;
+  font-size: 0.85rem;
+}
+
+.notif-empty-icon {
+  font-size: 1.8rem;
+  color: #10B981;
+  display: block;
+}
+
+.notif-items-list {
+  overflow-y: auto;
+  max-height: 340px;
+}
+
+.notif-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #F1F5F9;
+  cursor: pointer;
+  transition: background 0.15s;
+  position: relative;
+}
+
+.notif-item:hover {
+  background: #F8FAFC;
+}
+
+.notif-item.unread {
+  background: #F0FDF4;
+}
+
+.notif-type-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 5px;
+  background-color: #64748B;
+}
+
+.notif-type-dot.type-alerta { background-color: #EF4444; }
+.notif-type-dot.type-dispositivo { background-color: #00A896; }
+.notif-type-dot.type-sistema { background-color: #3B82F6; }
+.notif-type-dot.type-ruta { background-color: #F59E0B; }
+
+.notif-content-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.notif-item-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #0E444E;
+  margin-bottom: 2px;
+}
+
+.notif-item-msg {
+  font-size: 0.78rem;
+  color: #475569;
+  line-height: 1.35;
+  margin-bottom: 4px;
+}
+
+.notif-item-time {
+  font-size: 0.7rem;
+  color: #94A3B8;
+}
+
+.unread-glow-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10B981;
+  margin-top: 6px;
 }
 
 .user-profile-widget {

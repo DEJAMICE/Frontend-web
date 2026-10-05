@@ -123,41 +123,64 @@ const fallbackSafeRoute = [
   [-12.0945, -77.0480]
 ];
 
-// Fetch Real Street Routes from OSRM
+// Fetch Real Street Routes according to specific Transport Profile
 async function fetchOsrmRoute(origin, dest, mode = 'walking') {
-  const osrmProfile = mode === 'driving' ? 'driving' : mode === 'cycling' ? 'driving' : 'foot';
-  const url = `https://router.project-osrm.org/route/v1/${osrmProfile}/${origin.lng},${origin.lat};${dest.lng},${dest.lat}?overview=full&geometries=geojson&alternatives=true`;
+  // URLs primarias según perfil oficial de OpenStreetMap
+  const serviceEndpoint = mode === 'walking'
+    ? 'https://routing.openstreetmap.de/routed-foot/route/v1/driving'
+    : mode === 'cycling'
+      ? 'https://routing.openstreetmap.de/routed-bike/route/v1/driving'
+      : 'https://routing.openstreetmap.de/routed-car/route/v1/driving';
 
-  try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('OSRM API Error');
-    const data = await res.json();
+  const primaryUrl = `${serviceEndpoint}/${origin.lng},${origin.lat};${dest.lng},${dest.lat}?overview=full&geometries=geojson&alternatives=true`;
+  const fallbackUrl = `https://router.project-osrm.org/route/v1/${mode === 'driving' ? 'driving' : 'foot'}/${origin.lng},${origin.lat};${dest.lng},${dest.lat}?overview=full&geometries=geojson&alternatives=true`;
 
-    if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
-      const primaryRoute = data.routes[0];
-      const altRoute = data.routes.length > 1 ? data.routes[1] : null;
+  for (const url of [primaryUrl, fallbackUrl]) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const data = await res.json();
 
-      // Convert GeoJSON [lng, lat] to Leaflet [lat, lng]
-      const primaryCoords = primaryRoute.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
-      const altCoords = altRoute ? altRoute.geometry.coordinates.map(([lng, lat]) => [lat, lng]) : [];
+      if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+        const primaryRoute = data.routes[0];
+        const altRoute = data.routes.length > 1 ? data.routes[1] : null;
 
-      return {
-        safePath: primaryCoords,
-        altPath: altCoords.length > 0 ? altCoords : generateAlternativePath(primaryCoords),
-        distanceMeters: primaryRoute.distance,
-        durationSeconds: primaryRoute.duration
-      };
+        const primaryCoords = primaryRoute.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+        const altCoords = altRoute ? altRoute.geometry.coordinates.map(([lng, lat]) => [lat, lng]) : [];
+
+        // Duración precisa según modo de transporte
+        let computedDuration = primaryRoute.duration;
+        if (mode === 'walking') {
+          // A pie: ~4.8 km/h = 80 m/min
+          computedDuration = Math.max(120, Math.round(primaryRoute.distance / 1.33));
+        } else if (mode === 'cycling') {
+          // En bicicleta: ~16 km/h = 266 m/min
+          computedDuration = Math.max(90, Math.round(primaryRoute.distance / 4.44));
+        } else {
+          // Vehículo: red vial con semáforos (~32 km/h)
+          computedDuration = Math.max(60, Math.round(primaryRoute.distance / 8.88));
+        }
+
+        return {
+          safePath: primaryCoords,
+          altPath: altCoords.length > 0 ? altCoords : generateAlternativePath(primaryCoords),
+          distanceMeters: primaryRoute.distance,
+          durationSeconds: computedDuration
+        };
+      }
+    } catch (err) {
+      // Intentar fallback
     }
-  } catch (err) {
-    console.warn('Fallo OSRM, usando coordenadas de calles pre-calculadas:', err);
   }
 
-  // Fallback
+  // Fallback si la red está offline
+  const dist = 2450;
+  const dur = mode === 'walking' ? 1800 : mode === 'cycling' ? 600 : 360;
   return {
     safePath: fallbackSafeRoute,
     altPath: generateAlternativePath(fallbackSafeRoute),
-    distanceMeters: 2450,
-    durationSeconds: 1560
+    distanceMeters: dist,
+    durationSeconds: dur
   };
 }
 

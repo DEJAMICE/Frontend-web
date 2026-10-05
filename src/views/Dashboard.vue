@@ -121,8 +121,22 @@ function formatDate(isoDate) {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' ' + d.toLocaleDateString([], { day: '2-digit', month: 'short' });
 }
 
-onMounted(() => {
+onMounted(async () => {
   loadHistory();
+  try {
+    const { contactsService, devicesService } = await import('../services');
+    const [c, d] = await Promise.all([
+      contactsService.getContacts().catch(() => null),
+      devicesService.getDevices().catch(() => null)
+    ]);
+    if (Array.isArray(c)) contactsCount.value = c.length;
+    else if (c?.data && Array.isArray(c.data)) contactsCount.value = c.data.length;
+
+    if (Array.isArray(d)) devicesCount.value = d.length;
+    else if (d?.data && Array.isArray(d.data)) devicesCount.value = d.data.length;
+  } catch (e) {
+    console.warn('Dashboard stats fallback:', e);
+  }
 });
 </script>
 
@@ -133,7 +147,7 @@ onMounted(() => {
     <div class="flex flex-wrap justify-content-between align-items-center mb-3">
       <div>
         <h1 class="page-title m-0">Panel de Control y Monitoreo</h1>
-        <p class="subtitle m-0">Bienvenido, {{ authStore.user?.fullName || 'Mathias Cárdenas' }} · SecuraNet Urban Safety Hub</p>
+        <p class="subtitle m-0">Bienvenido, {{ authStore.user?.fullName || 'Usuario Protegido' }} · SecuraNet Urban Safety Hub</p>
       </div>
       <div class="flex align-items-center gap-2 mt-2 md:mt-0">
         <span class="status-pill-system font-bold flex align-items-center gap-1">

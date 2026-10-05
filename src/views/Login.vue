@@ -128,6 +128,11 @@ const isLoading = ref(false);
 const errorMessage = ref('');
 
 const handleLogin = async () => {
+  if (!loginForm.value.email?.trim() || !loginForm.value.password) {
+    errorMessage.value = 'Por favor ingresa tu correo y contraseña.';
+    return;
+  }
+
   isLoading.value = true;
   errorMessage.value = '';
 
@@ -137,9 +142,11 @@ const handleLogin = async () => {
     if (result.token) {
       authStore.setAuth(result.token, result.user);
       router.push('/app/dashboard');
+    } else {
+      errorMessage.value = 'No se pudo obtener el token de sesión.';
     }
   } catch (error) {
-    errorMessage.value = error.message || 'Credenciales incorrectas.';
+    errorMessage.value = error.message || 'Correo o contraseña incorrectos.';
   } finally {
     isLoading.value = false;
   }
@@ -150,21 +157,10 @@ const showForgotInfo = () => {
 };
 
 const handleGoogleDemo = async () => {
-  isLoading.value = true;
-  try {
-    const result = await authService.login({
-      email: 'demo@securanet.com',
-      password: 'password123'
-    });
-    if (result.token) {
-      authStore.setAuth(result.token, result.user);
-      router.push('/app/dashboard');
-    }
-  } catch {
-    router.push('/app/dashboard');
-  } finally {
-    isLoading.value = false;
-  }
+  // Rellena e inicia sesión con el usuario semilla oficial del Backend
+  loginForm.value.email = 'demo@safesignal.pe';
+  loginForm.value.password = 'Demo1234!';
+  await handleLogin();
 };
 </script>
 

@@ -14,4 +14,6 @@ export { trackingService } from './tracking.service';
 export { authService } from './auth.service';
 export { contactsService } from './contacts.service';
 export { devicesService } from './devices.service';
+export { notificationsService } from './notifications.service';
+export { reportsService } from './reports.service';
 export * from './mockData';
