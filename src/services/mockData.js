@@ -5,8 +5,8 @@
 
 export const mockCurrentUser = {
   id: 'usr_001',
-  fullName: 'Mathias Andree Cárdenas Huamán',
-  email: 'u202316353@upc.edu.pe',
+  fullName: 'Jesús Andres Godoy Santillan',
+  email: 'u20251c350@upc.edu.pe',
   phone: '+51 987 654 321',
   role: 'CITIZEN',
   subscriptionPlan: 'PRO',
