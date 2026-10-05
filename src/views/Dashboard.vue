@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useAuthStore } from '../stores/authStore';
 import Card from 'primevue/card';
 import Button from 'primevue/button';
@@ -21,6 +21,12 @@ const currentActiveAlert = ref(null);
 const isEmittingSos = ref(false);
 const alertHistory = ref([]);
 const isLoadingHistory = ref(false);
+const contactsCount = ref(3);
+const devicesCount = ref(2);
+
+const activeAlertsCount = computed(() => {
+  return alertHistory.value.filter(a => (a.status || '').toUpperCase() === 'ACTIVE').length;
+});
 
 async function loadHistory() {
   isLoadingHistory.value = true;
@@ -127,12 +133,48 @@ onMounted(() => {
     <div class="flex flex-wrap justify-content-between align-items-center mb-3">
       <div>
         <h1 class="page-title m-0">Panel de Control y Monitoreo</h1>
-        <p class="subtitle m-0">Bienvenido, {{ authStore.user?.fullName || 'Jesús Godoy' }} · SecuraNet Urban Safety Hub</p>
+        <p class="subtitle m-0">Bienvenido, {{ authStore.user?.fullName || 'Mathias Cárdenas' }} · SecuraNet Urban Safety Hub</p>
       </div>
       <div class="flex align-items-center gap-2 mt-2 md:mt-0">
-        <span class="text-xs bg-green-100 text-green-700 px-3 py-1 border-round font-bold flex align-items-center gap-1">
+        <span class="status-pill-system font-bold flex align-items-center gap-1">
           <i class="pi pi-check-circle"></i> Sistema Conectado a Central de Seguridad
         </span>
+      </div>
+    </div>
+
+    <!-- 3 KPI Cards oficiales de Fuentes/Prototype Code.txt -->
+    <div class="kpi-grid mb-4">
+      <div class="kpi-card">
+        <div class="kpi-card-header">
+          <span class="kpi-label">Alertas Activas</span>
+          <div class="kpi-icon-box danger-box">
+            <i class="pi pi-shield"></i>
+          </div>
+        </div>
+        <div class="kpi-number" :class="{ 'text-danger': activeAlertsCount > 0 }">{{ activeAlertsCount }}</div>
+        <div class="kpi-subtext">{{ activeAlertsCount === 0 ? 'Sin incidentes activos' : `${activeAlertsCount} en seguimiento activo` }}</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-card-header">
+          <span class="kpi-label">Contactos de Confianza</span>
+          <div class="kpi-icon-box accent-box">
+            <i class="pi pi-users"></i>
+          </div>
+        </div>
+        <div class="kpi-number">{{ contactsCount }}</div>
+        <div class="kpi-subtext">En tu red de protección</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-card-header">
+          <span class="kpi-label">Dispositivos IoT</span>
+          <div class="kpi-icon-box brand-box">
+            <i class="pi pi-compass"></i>
+          </div>
+        </div>
+        <div class="kpi-number">{{ devicesCount }}</div>
+        <div class="kpi-subtext">Sincronizados vía Bluetooth BLE</div>
       </div>
     </div>
 
@@ -292,47 +334,139 @@ onMounted(() => {
 }
 
 .page-title {
-  color: #1A2B4C;
-  font-size: 1.6rem;
+  color: var(--ink, #1B2B2E);
+  font-size: 1.55rem;
   font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .subtitle {
-  color: #64748b;
-  font-size: 0.9rem;
+  color: var(--sub, #5A6B6E);
+  font-size: 0.88rem;
+}
+
+.status-pill-system {
+  font-size: 0.78rem;
+  background-color: var(--accent-soft, #E1F4F1);
+  color: var(--accent-ink, #00695C);
+  border: 1px solid var(--accent-border, #9FD9D0);
+  padding: 5px 12px;
+  border-radius: 999px;
+}
+
+/* KPI Cards exactas de Dashboard.tsx en Fuentes/Prototype Code.txt */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.kpi-card {
+  background-color: #FFFFFF;
+  border: 1.5px solid var(--border, #D7E4E6);
+  border-radius: 12px;
+  padding: 20px 22px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(14, 68, 78, 0.06);
+}
+
+.kpi-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.kpi-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--sub, #5A6B6E);
+}
+
+.kpi-icon-box {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+}
+
+.kpi-icon-box.danger-box {
+  background-color: var(--danger-soft, #FDECEA);
+  color: var(--danger, #D32F2F);
+  border: 1px solid #ffcdd2;
+}
+
+.kpi-icon-box.accent-box {
+  background-color: var(--accent-soft, #E1F4F1);
+  color: var(--accent, #00A896);
+  border: 1px solid var(--accent-border, #9FD9D0);
+}
+
+.kpi-icon-box.brand-box {
+  background-color: var(--panel, #EAF4F4);
+  color: var(--brand, #0E444E);
+  border: 1px solid var(--border, #D7E4E6);
+}
+
+.kpi-number {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: var(--ink, #1B2B2E);
+  margin-top: 8px;
+  line-height: 1.1;
+}
+
+.kpi-number.text-danger {
+  color: var(--danger, #D32F2F);
+}
+
+.kpi-subtext {
+  font-size: 0.78rem;
+  color: var(--muted, #7A8A8C);
+  margin-top: 8px;
 }
 
 .dashboard-card {
-  border-radius: 10px;
-  background-color: white;
-  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background-color: #FFFFFF;
+  border: 1.5px solid var(--border, #D7E4E6);
 }
 
 .sos-card {
-  border-left: 4px solid #ef4444;
-  background: linear-gradient(180deg, #fff5f5 0%, #ffffff 100%);
+  border-left: 4px solid var(--danger, #D32F2F);
+  background: linear-gradient(180deg, #fffafa 0%, #ffffff 100%);
 }
 
 .sos-pulse-ring {
   width: 76px;
   height: 76px;
   margin: 0 auto;
-  background-color: #ef4444;
+  background-color: var(--danger, #D32F2F);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+  box-shadow: 0 4px 15px rgba(211, 47, 47, 0.4);
 }
 
 .sos-button-trigger {
   padding: 0.9rem 1.2rem;
   font-size: 1.1rem;
   letter-spacing: 0.5px;
+  background-color: var(--danger, #D32F2F) !important;
+  border-color: var(--danger, #D32F2F) !important;
   transition: transform 0.15s ease-in-out;
 }
 
 .sos-button-trigger:hover {
   transform: scale(1.02);
+  background-color: var(--danger-hover, #B71C1C) !important;
 }
 </style>

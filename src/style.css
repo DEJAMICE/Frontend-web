@@ -1,25 +1,67 @@
-/* SafeSignal - Global Stylesheet */
+/* SecuraNet / SafeSignal - Global Theme matching Fuentes/Prototype Code.txt */
 :root {
-  --primary-color: #1A2B4C;
-  --surface-ground: #F4F7FA;
-  --text-color: #333333;
+  --brand: #0E444E;
+  --brand-hover: #155A66;
+  --brand-border: rgba(255, 255, 255, 0.14);
+  --on-brand: #FFFFFF;
+  --on-brand-sub: rgba(255, 255, 255, 0.74);
+  --on-brand-faint: rgba(255, 255, 255, 0.52);
+
+  --accent: #00A896;
+  --accent-hover: #00917F;
+  --accent-soft: #E1F4F1;
+  --accent-border: #9FD9D0;
+  --accent-ink: #00695C;
+
+  --bg: #F4F8F8;
+  --panel: #EAF4F4;
+  --border: #D7E4E6;
+  --ink: #1B2B2E;
+  --sub: #5A6B6E;
+  --muted: #7A8A8C;
+  --faint: #A3B2B4;
+
+  --danger: #D32F2F;
+  --danger-hover: #B71C1C;
+  --danger-soft: #FDECEA;
+
+  /* PrimeVue theme integration */
+  --p-primary-color: #00A896;
+  --p-primary-hover-color: #00917F;
+  --surface-ground: #F4F8F8;
+  --text-color: #1B2B2E;
 }
 
 body {
   margin: 0;
   padding: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  background-color: var(--surface-ground);
-  color: var(--text-color);
+  background-color: var(--bg);
+  color: var(--ink);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 a {
-  color: #2196F3;
+  color: var(--accent);
   text-decoration: none;
 }
 
 a:hover {
   text-decoration: underline;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
 }
