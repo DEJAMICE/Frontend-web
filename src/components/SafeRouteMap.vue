@@ -344,10 +344,11 @@ onMounted(() => {
     zoomControl: true
   });
 
-  // Base Map CartoDB Positron / OSM
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+  // Base Map OpenStreetMap Standard (Sin marcas de agua)
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
-    attribution: '© OpenStreetMap, © CARTO · SecuraNet Routing Engine'
+    subdomains: ['a', 'b', 'c'],
+    attribution: '© OpenStreetMap contributors · SecuraNet Routing Engine'
   }).addTo(map);
 
   riskLayersGroup = L.layerGroup().addTo(map);
