@@ -10,8 +10,12 @@
 
 import axios from 'axios';
 
-// Base URL configurable por variables de entorno de Vite (.env)
-const BASE_URL = import.meta.env?.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+// Base URL configurable por variables de entorno de Vite (.env) o autodetección
+const defaultBaseUrl = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+  ? 'https://safesignal-api.onrender.com/api/v1'
+  : 'http://localhost:5000/api/v1';
+
+const BASE_URL = import.meta.env?.VITE_API_BASE_URL || defaultBaseUrl;
 export const USE_MOCK = import.meta.env?.VITE_USE_MOCK === 'true';
 
 // Instancia principal de Axios
