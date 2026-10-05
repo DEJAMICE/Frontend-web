@@ -11,6 +11,7 @@ const SosView = () => import('../views/SosView.vue');
 const Contactos = () => import('../views/Contactos.vue');
 const Dispositivos = () => import('../views/Dispositivos.vue');
 const Historial = () => import('../views/Historial.vue');
+const Reportes = () => import('../views/Reportes.vue');
 
 const routes = [
     { path: '/', redirect: '/login' },
@@ -21,6 +22,7 @@ const routes = [
     { path: '/dashboard', redirect: '/app/dashboard' },
     { path: '/perfil', redirect: '/app/perfil' },
     { path: '/profile', redirect: '/app/perfil' },
+    { path: '/configuracion', redirect: '/app/perfil' },
     { path: '/rutas', redirect: '/app/rutas' },
     { path: '/sos', redirect: '/app/sos' },
     { path: '/historial', redirect: '/app/historial' },
@@ -29,6 +31,7 @@ const routes = [
     { path: '/contacts', redirect: '/app/contactos' },
     { path: '/dispositivos', redirect: '/app/dispositivos' },
     { path: '/devices', redirect: '/app/dispositivos' },
+    { path: '/reportes', redirect: '/app/reportes' },
 
     // Área Autenticada con MainLayout
     {
@@ -43,6 +46,7 @@ const routes = [
             { path: 'historial', name: 'Historial', component: Historial },
             { path: 'contactos', name: 'Contactos', component: Contactos },
             { path: 'dispositivos', name: 'Dispositivos', component: Dispositivos },
+            { path: 'reportes', name: 'Reportes', component: Reportes },
             { path: 'perfil', name: 'Perfil', component: Perfil },
         ]
     },

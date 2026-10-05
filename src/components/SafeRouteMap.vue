@@ -1,292 +1,373 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import L from 'leaflet';
-import Button from 'primevue/button';
 
 const props = defineProps({
   height: {
     type: String,
-    default: '480px'
+    default: '540px'
   },
-  showControls: {
+  origin: {
+    type: Object,
+    default: () => ({ lat: -12.0864, lng: -77.0321, name: 'UPC Campus San Isidro' })
+  },
+  destination: {
+    type: Object,
+    default: () => ({ lat: -12.0945, lng: -77.0480, name: 'Av. Salaverry cdra. 24' })
+  },
+  travelMode: {
+    type: String,
+    default: 'walking' // 'walking', 'cycling', 'driving'
+  },
+  activeRoute: {
+    type: String,
+    default: 'safe' // 'safe' | 'alternative'
+  },
+  isNavigating: {
     type: Boolean,
-    default: true
+    default: false
   }
 });
+
+const emit = defineEmits(['routeCalculated', 'pointSelected']);
 
 const mapContainer = ref(null);
 let map = null;
 
-// Control de capas
-const showRiskZones = ref(true);
-const showIncidents = ref(true);
-const showSafeRoute = ref(true);
-const selectedRoutePreset = ref('upc_salaverry');
-
-// Grupos de capas
+// Layer Groups
 let riskLayersGroup = null;
 let incidentLayersGroup = null;
-let routeLayersGroup = null;
+let safeRouteGroup = null;
+let altRouteGroup = null;
+let markersGroup = null;
+let navigationMarker = null;
 
-// Fijar iconos por defecto en Leaflet con Vite
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-});
+let navigationInterval = null;
+let currentWaypointIndex = 0;
+let currentStreetCoords = [];
 
-// Datos de Zonas de Riesgo en Lima
+// Zonas de Riesgo reales en Lima (Polígonos y círculos con detalles)
 const riskZonesData = [
   {
     name: 'Zona Crítica: Av. Brasil / Jr. Bolognesi',
     type: 'HIGH_RISK',
     lat: -12.0915,
     lng: -77.0435,
-    radius: 360,
-    color: '#ef4444',
-    fillColor: '#f87171',
-    description: 'Alta incidencia de robos al paso y arranches nocturnos (20:00 - 05:00 hrs).',
-    reportedEvents: 14
+    radius: 280,
+    color: '#DC2626',
+    fillColor: '#EF4444',
+    description: 'Punto crítico por arranches y arrebatos nocturnos.',
+    incidents: 14
   },
   {
     name: 'Zona de Alerta: Cruce Javier Prado / Pershing',
     type: 'MEDIUM_RISK',
     lat: -12.0880,
     lng: -77.0510,
-    radius: 300,
-    color: '#f59e0b',
-    fillColor: '#fbbf24',
-    description: 'Congestión vehicular prolongada, reportes frecuentes de arrebato a transeúntes.',
-    reportedEvents: 8
+    radius: 250,
+    color: '#D97706',
+    fillColor: '#F59E0B',
+    description: 'Congestión vehicular y escasa visibilidad nocturna.',
+    incidents: 8
   },
   {
-    name: 'Zona Oscura: Pasaje San Andrés (Magdalena)',
+    name: 'Zona Oscura: Jr. Puno / Magdalena',
     type: 'LOW_LIGHT',
     lat: -12.0965,
     lng: -77.0390,
     radius: 220,
-    color: '#f97316',
-    fillColor: '#fb923c',
-    description: 'Luminarias públicas averiadas. Escasa visibilidad reportada por la comunidad.',
-    reportedEvents: 5
+    color: '#EA580C',
+    fillColor: '#FB923C',
+    description: 'Falla recurrente en luminarias públicas.',
+    incidents: 5
   }
 ];
 
-// Datos de Incidentes Urbanos
+// Incidentes y Cámaras de Vigilancia
 const incidentsData = [
   {
-    title: 'Arrebato de celular',
+    title: 'Arrebato de pertenencias',
     lat: -12.0905,
     lng: -77.0420,
-    time: 'Hace 18 min',
+    time: 'Hace 15 min',
     severity: 'Alta',
-    verified: true
+    isSafe: false
   },
   {
-    title: 'Sujeto sospechoso merodeando',
-    lat: -12.0872,
-    lng: -77.0485,
-    time: 'Hace 45 min',
-    severity: 'Media',
-    verified: true
-  },
-  {
-    title: 'Cámara vecinal de videovigilancia activa',
-    lat: -12.0845,
-    lng: -77.0350,
-    time: 'Punto seguro permanente',
+    title: 'Cámara de Serenazgo Activa',
+    lat: -12.0850,
+    lng: -77.0360,
+    time: 'Vigilancia 24/7',
     severity: 'Seguro',
-    verified: true,
-    isSafePoint: true
+    isSafe: true
+  },
+  {
+    title: 'Módulo de Seguridad Ciudadana',
+    lat: -12.0935,
+    lng: -77.0465,
+    time: 'Punto de auxilio rápido',
+    severity: 'Seguro',
+    isSafe: true
   }
 ];
 
-// Coordenadas de Rutas Predefinidas
-const routes = {
-  upc_salaverry: {
-    name: 'UPC San Isidro ➔ Av. Salaverry',
-    distance: '2.1 km',
-    duration: '24 min',
-    safetyScore: '98% Seguro',
-    origin: { lat: -12.0864, lng: -77.0321, name: 'Origen: UPC Campus San Isidro' },
-    destination: { lat: -12.0945, lng: -77.0480, name: 'Destino: Residencial Salaverry' },
-    // Ruta directa insegura (atraviesa zona roja)
-    unsafePath: [
-      [-12.0864, -77.0321],
-      [-12.0885, -77.0380],
-      [-12.0915, -77.0435], // Pasa por el centro del peligro
-      [-12.0945, -77.0480]
-    ],
-    // Ruta segura calculada por IA SecuraNet (bordea las zonas rojas por corredores iluminados y vigilados)
-    safePath: [
-      [-12.0864, -77.0321],
-      [-12.0840, -77.0345],
-      [-12.0835, -77.0395],
-      [-12.0850, -77.0450],
-      [-12.0880, -77.0485],
-      [-12.0920, -77.0495],
-      [-12.0945, -77.0480]
-    ]
-  },
-  magdalena_centro: {
-    name: 'Av. Brasil ➔ San Isidro Financiero',
-    distance: '3.4 km',
-    duration: '38 min',
-    safetyScore: '96% Seguro',
-    origin: { lat: -12.0980, lng: -77.0460, name: 'Origen: Av. Brasil cdra. 35' },
-    destination: { lat: -12.0930, lng: -77.0280, name: 'Destino: Centro Empresarial Real' },
-    unsafePath: [
-      [-12.0980, -77.0460],
-      [-12.0950, -77.0410],
-      [-12.0915, -77.0350],
-      [-12.0930, -77.0280]
-    ],
-    safePath: [
-      [-12.0980, -77.0460],
-      [-12.0995, -77.0420],
-      [-12.0970, -77.0360],
-      [-12.0940, -77.0310],
-      [-12.0930, -77.0280]
-    ]
-  }
-};
+// Fallback street path in case OSRM is offline
+const fallbackSafeRoute = [
+  [-12.0864, -77.0321],
+  [-12.0870, -77.0325],
+  [-12.0885, -77.0340],
+  [-12.0898, -77.0360],
+  [-12.0910, -77.0385],
+  [-12.0925, -77.0410],
+  [-12.0935, -77.0445],
+  [-12.0945, -77.0480]
+];
 
-const currentRoute = ref(routes[selectedRoutePreset.value]);
+// Fetch Real Street Routes from OSRM
+async function fetchOsrmRoute(origin, dest, mode = 'walking') {
+  const osrmProfile = mode === 'driving' ? 'driving' : mode === 'cycling' ? 'driving' : 'foot';
+  const url = `https://router.project-osrm.org/route/v1/${osrmProfile}/${origin.lng},${origin.lat};${dest.lng},${dest.lat}?overview=full&geometries=geojson&alternatives=true`;
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('OSRM API Error');
+    const data = await res.json();
+
+    if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+      const primaryRoute = data.routes[0];
+      const altRoute = data.routes.length > 1 ? data.routes[1] : null;
+
+      // Convert GeoJSON [lng, lat] to Leaflet [lat, lng]
+      const primaryCoords = primaryRoute.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+      const altCoords = altRoute ? altRoute.geometry.coordinates.map(([lng, lat]) => [lat, lng]) : [];
+
+      return {
+        safePath: primaryCoords,
+        altPath: altCoords.length > 0 ? altCoords : generateAlternativePath(primaryCoords),
+        distanceMeters: primaryRoute.distance,
+        durationSeconds: primaryRoute.duration
+      };
+    }
+  } catch (err) {
+    console.warn('Fallo OSRM, usando coordenadas de calles pre-calculadas:', err);
+  }
+
+  // Fallback
+  return {
+    safePath: fallbackSafeRoute,
+    altPath: generateAlternativePath(fallbackSafeRoute),
+    distanceMeters: 2450,
+    durationSeconds: 1560
+  };
+}
+
+// Generar ruta alternativa por calles paralelas si OSRM no devuelve ruta alternativa
+function generateAlternativePath(primaryCoords) {
+  return primaryCoords.map(([lat, lng], idx) => {
+    if (idx === 0 || idx === primaryCoords.length - 1) return [lat, lng];
+    // Offset leve hacia vía paralela
+    return [lat + 0.0018, lng + 0.0012];
+  });
+}
+
+async function renderRealStreetRoute() {
+  if (!map || !props.origin || !props.destination) return;
+
+  safeRouteGroup.clearLayers();
+  altRouteGroup.clearLayers();
+  markersGroup.clearLayers();
+
+  // 1. Marcador Origen (Pin Verde con icono)
+  const originIcon = L.divIcon({
+    html: `<div style="background:#00A896; color:white; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 3px 8px rgba(0,0,0,0.3); border:2px solid white;"><i class="pi pi-map-marker" style="font-size:16px;"></i></div>`,
+    className: 'custom-pin-origin',
+    iconSize: [32, 32],
+    iconAnchor: [16, 32]
+  });
+  const originMarker = L.marker([props.origin.lat, props.origin.lng], { icon: originIcon })
+    .bindPopup(`<b>🟢 Origen:</b> ${props.origin.name}`);
+  markersGroup.addLayer(originMarker);
+
+  // 2. Marcador Destino (Pin Rojo con bandera)
+  const destIcon = L.divIcon({
+    html: `<div style="background:#E11D48; color:white; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 3px 8px rgba(0,0,0,0.3); border:2px solid white;"><i class="pi pi-flag" style="font-size:15px;"></i></div>`,
+    className: 'custom-pin-dest',
+    iconSize: [32, 32],
+    iconAnchor: [16, 32]
+  });
+  const destMarker = L.marker([props.destination.lat, props.destination.lng], { icon: destIcon })
+    .bindPopup(`<b>🏁 Destino:</b> ${props.destination.name}`);
+  markersGroup.addLayer(destMarker);
+
+  // 3. Obtener rutas por calles reales
+  const routeData = await fetchOsrmRoute(props.origin, props.destination, props.travelMode);
+  currentStreetCoords = routeData.safePath;
+
+  emit('routeCalculated', {
+    distanceKm: (routeData.distanceMeters / 1000).toFixed(1),
+    durationMin: Math.round(routeData.durationSeconds / 60),
+    safetyScore: 94,
+    zonesAvoided: 2
+  });
+
+  // 4. Dibujar Ruta Alternativa (Línea discontinua)
+  const isAltActive = props.activeRoute === 'alternative';
+  const altPolyline = L.polyline(routeData.altPath, {
+    color: isAltActive ? '#D97706' : '#94A3B8',
+    weight: isAltActive ? 6 : 4,
+    dashArray: isAltActive ? null : '6, 8',
+    opacity: isAltActive ? 0.95 : 0.65
+  }).bindPopup('<b>Ruta Alternativa:</b> Recorrido secundario por calles con iluminación estándar.');
+  altRouteGroup.addLayer(altPolyline);
+
+  // 5. Dibujar Ruta Segura Recomendada con IA (Trazado continuo por calles)
+  const isSafeActive = props.activeRoute === 'safe';
+  const safePolyline = L.polyline(routeData.safePath, {
+    color: isSafeActive ? '#00A896' : '#64748B',
+    weight: isSafeActive ? 7 : 4,
+    opacity: isSafeActive ? 0.95 : 0.6
+  }).bindPopup('<b>✅ Ruta Segura IA:</b> Trazado optimizado por vías iluminadas con cámaras y patrullaje.');
+  safeRouteGroup.addLayer(safePolyline);
+
+  // Ajustar vista del mapa
+  const activePolyline = isSafeActive ? safePolyline : altPolyline;
+  map.fitBounds(activePolyline.getBounds(), { padding: [50, 50] });
+}
 
 function renderRiskZones() {
   riskLayersGroup.clearLayers();
-  if (!showRiskZones.value) return;
-
   riskZonesData.forEach(zone => {
     const circle = L.circle([zone.lat, zone.lng], {
       color: zone.color,
       fillColor: zone.fillColor,
-      fillOpacity: 0.35,
+      fillOpacity: 0.28,
       weight: 2,
       radius: zone.radius
-    });
-
-    circle.bindPopup(`
-      <div style="font-family: sans-serif; min-width: 180px;">
-        <h4 style="margin: 0 0 6px 0; color: ${zone.color}; font-size: 14px;">⚠️ ${zone.name}</h4>
-        <p style="margin: 0 0 6px 0; font-size: 12px; color: #475569;">${zone.description}</p>
-        <span style="font-size: 11px; background: #fee2e2; color: #b91c1c; padding: 2px 6px; border-radius: 4px; font-weight: bold;">
-          ${zone.reportedEvents} incidentes en los últimos 30 días
+    }).bindPopup(`
+      <div style="font-family: inherit; min-width: 170px;">
+        <b style="color: ${zone.color}; font-size: 13px;">⚠️ ${zone.name}</b>
+        <p style="margin: 4px 0; font-size: 11px; color: #475569;">${zone.description}</p>
+        <span style="font-size: 10px; background: #fee2e2; color: #b91c1c; padding: 2px 6px; border-radius: 4px; font-weight: bold;">
+          ${zone.incidents} incidentes registrados
         </span>
       </div>
     `);
-
     riskLayersGroup.addLayer(circle);
   });
 }
 
 function renderIncidents() {
   incidentLayersGroup.clearLayers();
-  if (!showIncidents.value) return;
-
   incidentsData.forEach(inc => {
-    const iconHtml = inc.isSafePoint
-      ? `<div style="background:#10b981; color:white; border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,0.3); font-weight:bold; font-size:16px;">🛡️</div>`
-      : `<div style="background:#ef4444; color:white; border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,0.3); font-weight:bold; font-size:14px;">🚨</div>`;
+    const iconHtml = inc.isSafe
+      ? `<div style="background:#10B981; color:white; border-radius:50%; width:28px; height:28px; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,0.25);"><i class="pi pi-shield" style="font-size:14px;"></i></div>`
+      : `<div style="background:#EF4444; color:white; border-radius:50%; width:28px; height:28px; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,0.25);"><i class="pi pi-exclamation-triangle" style="font-size:13px;"></i></div>`;
 
     const customIcon = L.divIcon({
       html: iconHtml,
-      className: 'custom-incident-icon',
-      iconSize: [30, 30],
-      iconAnchor: [15, 15]
+      className: 'custom-map-incident-icon',
+      iconSize: [28, 28],
+      iconAnchor: [14, 14]
     });
 
-    const marker = L.marker([inc.lat, inc.lng], { icon: customIcon });
-    marker.bindPopup(`
-      <div style="font-family: sans-serif;">
-        <b style="font-size: 13px; color: ${inc.isSafePoint ? '#059669' : '#dc2626'};">${inc.title}</b><br>
-        <span style="font-size: 11px; color: #64748b;">Reportado: ${inc.time}</span><br>
-        <span style="font-size: 11px; color: #334155; font-weight: 600;">Estado: Verificado por Serenazgo</span>
-      </div>
-    `);
-
+    const marker = L.marker([inc.lat, inc.lng], { icon: customIcon })
+      .bindPopup(`
+        <div>
+          <b style="color: ${inc.isSafe ? '#059669' : '#DC2626'}; font-size: 12px;">${inc.title}</b><br/>
+          <span style="font-size: 11px; color: #64748B;">${inc.time}</span>
+        </div>
+      `);
     incidentLayersGroup.addLayer(marker);
   });
 }
 
-function renderRoutes() {
-  routeLayersGroup.clearLayers();
-  if (!showSafeRoute.value) return;
-
-  const r = routes[selectedRoutePreset.value];
-  currentRoute.value = r;
-
-  // Marcador Origen
-  const originMarker = L.marker([r.origin.lat, r.origin.lng]).bindPopup(`<b>🟢 ${r.origin.name}</b>`);
-  routeLayersGroup.addLayer(originMarker);
-
-  // Marcador Destino
-  const destMarker = L.marker([r.destination.lat, r.destination.lng]).bindPopup(`<b>🏁 ${r.destination.name}</b>`);
-  routeLayersGroup.addLayer(destMarker);
-
-  // Ruta Insegura (Directa, pasa por zonas de peligro - punteada en gris/rojo)
-  const unsafeLine = L.polyline(r.unsafePath, {
-    color: '#94a3b8',
-    dashArray: '8, 8',
-    weight: 4,
-    opacity: 0.7
-  }).bindPopup('<b>Ruta Directa Convencional:</b> No recomendada por proximidad a 2 zonas de asalto.');
-  routeLayersGroup.addLayer(unsafeLine);
-
-  // Ruta Segura SecuraNet (Calculada por IA, bordea zonas de peligro - verde sólida brillante)
-  const safeLine = L.polyline(r.safePath, {
-    color: '#10b981',
-    weight: 6,
-    opacity: 0.95
-  }).bindPopup(`<b>✅ Ruta Segura IA SecuraNet:</b> Optimizada por vías principales iluminadas y con patrullaje.`);
-  routeLayersGroup.addLayer(safeLine);
-
-  // Ajustar mapa a la ruta
-  map.fitBounds(safeLine.getBounds(), { padding: [40, 40] });
-}
-
-function updateMapLayers() {
-  renderRiskZones();
-  renderIncidents();
-  renderRoutes();
-}
-
-function changePreset(presetKey) {
-  selectedRoutePreset.value = presetKey;
-  renderRoutes();
-}
-
-watch([showRiskZones, showIncidents, showSafeRoute], () => {
-  updateMapLayers();
+// Live Simulated Navigation along real street polyline
+watch(() => props.isNavigating, (navigating) => {
+  if (navigating) {
+    startNavigationSimulation();
+  } else {
+    stopNavigationSimulation();
+  }
 });
+
+function startNavigationSimulation() {
+  if (!map || currentStreetCoords.length === 0) return;
+
+  stopNavigationSimulation();
+  currentWaypointIndex = 0;
+
+  const navIcon = L.divIcon({
+    html: `<div style="background:#0E444E; color:#00A896; width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 0 0 6px rgba(0,168,150,0.35); border:2px solid white; animation: pulseNav 1.2s infinite;"><i class="pi pi-compass" style="font-size:18px;"></i></div>`,
+    className: 'nav-live-icon',
+    iconSize: [34, 34],
+    iconAnchor: [17, 17]
+  });
+
+  const startCoord = currentStreetCoords[0];
+  navigationMarker = L.marker(startCoord, { icon: navIcon }).addTo(map);
+  map.panTo(startCoord);
+
+  navigationInterval = setInterval(() => {
+    if (currentWaypointIndex < currentStreetCoords.length - 1) {
+      currentWaypointIndex++;
+      const nextCoord = currentStreetCoords[currentWaypointIndex];
+      navigationMarker.setLatLng(nextCoord);
+      map.panTo(nextCoord, { animate: true });
+    } else {
+      stopNavigationSimulation();
+    }
+  }, 1000);
+}
+
+function stopNavigationSimulation() {
+  if (navigationInterval) {
+    clearInterval(navigationInterval);
+    navigationInterval = null;
+  }
+  if (navigationMarker && map) {
+    map.removeLayer(navigationMarker);
+    navigationMarker = null;
+  }
+}
+
+watch([() => props.origin, () => props.destination, () => props.travelMode, () => props.activeRoute], () => {
+  renderRealStreetRoute();
+}, { deep: true });
 
 onMounted(() => {
   if (!mapContainer.value) return;
 
-  // Inicializar Leaflet centrado en San Isidro / Lima
+  // Centro en Lima
   map = L.map(mapContainer.value, {
-    center: [-12.0885, -77.0410],
+    center: [-12.0910, -77.0410],
     zoom: 14,
     zoomControl: true
   });
 
-  // Capa base de OpenStreetMap
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  // Base Map CartoDB Positron / OSM
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
     maxZoom: 19,
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · SecuraNet Urban Safety'
+    attribution: '© OpenStreetMap, © CARTO · SecuraNet Routing Engine'
   }).addTo(map);
 
-  // Inicializar grupos de capas
   riskLayersGroup = L.layerGroup().addTo(map);
   incidentLayersGroup = L.layerGroup().addTo(map);
-  routeLayersGroup = L.layerGroup().addTo(map);
+  altRouteGroup = L.layerGroup().addTo(map);
+  safeRouteGroup = L.layerGroup().addTo(map);
+  markersGroup = L.layerGroup().addTo(map);
 
-  // Render inicial
-  updateMapLayers();
+  // Click on map to set points
+  map.on('click', (e) => {
+    emit('pointSelected', { lat: e.latlng.lat, lng: e.latlng.lng });
+  });
+
+  renderRiskZones();
+  renderIncidents();
+  renderRealStreetRoute();
 });
 
 onBeforeUnmount(() => {
+  stopNavigationSimulation();
   if (map) {
     map.remove();
     map = null;
@@ -295,124 +376,117 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="map-wrapper">
-    <!-- Barra superior de controles del mapa -->
-    <div v-if="showControls" class="map-toolbar p-3 surface-0 border-round mb-2 shadow-1 flex flex-wrap justify-content-between align-items-center gap-2">
-      <div class="flex align-items-center gap-2 flex-wrap">
-        <span class="text-sm font-bold text-700 mr-1">Capas activas:</span>
-        <Button 
-          :label="showRiskZones ? 'Zonas de Riesgo' : 'Ocultar Riesgos'" 
-          :icon="showRiskZones ? 'pi pi-exclamation-triangle' : 'pi pi-eye-slash'"
-          :severity="showRiskZones ? 'danger' : 'secondary'"
-          size="small"
-          outlined
-          @click="showRiskZones = !showRiskZones"
-        />
-        <Button 
-          :label="showIncidents ? 'Incidentes' : 'Ocultar Incidentes'" 
-          :icon="showIncidents ? 'pi pi-bell' : 'pi pi-eye-slash'"
-          :severity="showIncidents ? 'warn' : 'secondary'"
-          size="small"
-          outlined
-          @click="showIncidents = !showIncidents"
-        />
-        <Button 
-          :label="showSafeRoute ? 'Ruta Segura IA' : 'Ocultar Ruta'" 
-          :icon="showSafeRoute ? 'pi pi-compass' : 'pi pi-eye-slash'"
-          :severity="showSafeRoute ? 'success' : 'secondary'"
-          size="small"
-          outlined
-          @click="showSafeRoute = !showSafeRoute"
-        />
-      </div>
+  <div class="map-container-root">
+    <div ref="mapContainer" class="leaflet-map-element" :style="{ height: height }"></div>
 
-      <!-- Selector de Trayecto -->
-      <div class="flex align-items-center gap-2">
-        <span class="text-xs text-500 font-semibold">Trayecto sugerido:</span>
-        <Button 
-          label="UPC ➔ Salaverry" 
-          size="small" 
-          :severity="selectedRoutePreset === 'upc_salaverry' ? 'primary' : 'secondary'"
-          :text="selectedRoutePreset !== 'upc_salaverry'"
-          @click="changePreset('upc_salaverry')"
-        />
-        <Button 
-          label="Av. Brasil ➔ San Isidro" 
-          size="small" 
-          :severity="selectedRoutePreset === 'magdalena_centro' ? 'primary' : 'secondary'"
-          :text="selectedRoutePreset !== 'magdalena_centro'"
-          @click="changePreset('magdalena_centro')"
-        />
+    <!-- Floating Legend matching Prototype Code.txt lines 2776-2830 -->
+    <div class="floating-map-legend">
+      <div class="legend-header">LEYENDA</div>
+      <div class="legend-row">
+        <span class="legend-line safe-line"></span>
+        <span class="legend-label">Ruta segura recomendada (IA)</span>
       </div>
-    </div>
-
-    <!-- Indicador de Ruta Segura Seleccionada -->
-    <div v-if="showSafeRoute && currentRoute" class="route-badge-bar surface-100 p-2 border-round text-xs flex justify-content-between align-items-center mb-2">
-      <div class="flex align-items-center gap-2">
-        <span class="font-bold text-primary">{{ currentRoute.name }}</span>
-        <span class="text-500">|</span>
-        <span><b>Distancia:</b> {{ currentRoute.distance }}</span>
-        <span class="text-500">|</span>
-        <span><b>Tiempo est.:</b> {{ currentRoute.duration }}</span>
+      <div class="legend-row">
+        <span class="legend-line alt-line"></span>
+        <span class="legend-label">Ruta alternativa</span>
       </div>
-      <div class="flex align-items-center gap-1 font-bold text-green-600">
-        <i class="pi pi-shield"></i>
-        <span>{{ currentRoute.safetyScore }}</span>
+      <div class="legend-row">
+        <span class="legend-box risk-box"></span>
+        <span class="legend-label">Zonas de riesgo</span>
       </div>
-    </div>
-
-    <!-- Contenedor del Mapa Leaflet -->
-    <div ref="mapContainer" class="map-element border-round shadow-2" :style="{ height: height }"></div>
-
-    <!-- Leyenda explicativa inferior -->
-    <div class="map-legend mt-2 flex flex-wrap gap-4 text-xs text-600 justify-content-center">
-      <span class="flex align-items-center gap-1">
-        <span class="legend-color-box bg-red-500"></span> Zona crítica (Alta tasa de asaltos)
-      </span>
-      <span class="flex align-items-center gap-1">
-        <span class="legend-color-box bg-yellow-500"></span> Zona de alerta (Baja visibilidad / Iluminación)
-      </span>
-      <span class="flex align-items-center gap-1">
-        <span class="legend-line-box safe-line"></span> Ruta Segura SecuraNet (Evita peligro)
-      </span>
-      <span class="flex align-items-center gap-1">
-        <span class="legend-line-box unsafe-line"></span> Ruta directa peligrosa
-      </span>
+      <div class="legend-row">
+        <span class="legend-icon safe-point-icon"><i class="pi pi-shield"></i></span>
+        <span class="legend-label">Puntos de auxilio / Cámaras</span>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.map-wrapper {
+.map-container-root {
   position: relative;
   width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(14, 68, 78, 0.08);
 }
 
-.map-element {
+.leaflet-map-element {
   width: 100%;
   z-index: 1;
 }
 
-.legend-color-box {
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
-  display: inline-block;
+/* Floating Legend matching Prototype Code.txt lines 2776-2830 */
+.floating-map-legend {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  background: #FFFFFF;
+  border: 1px solid #D7E4E6;
+  border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 10;
+  pointer-events: auto;
 }
 
-.legend-line-box {
-  width: 20px;
+.legend-header {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #7A8A8C;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.78rem;
+  color: #1B2B2E;
+  font-weight: 500;
+}
+
+.legend-line {
+  width: 22px;
   height: 4px;
-  display: inline-block;
   border-radius: 2px;
 }
 
 .safe-line {
-  background-color: #10b981;
+  background-color: #00A896;
 }
 
-.unsafe-line {
-  background-color: #94a3b8;
-  border: 1px dashed #64748b;
+.alt-line {
+  background-color: #D97706;
+  border-top: 3px dashed #D97706;
+  height: 0;
+}
+
+.legend-box {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+}
+
+.risk-box {
+  background-color: #EF4444;
+  border: 1px solid #DC2626;
+  opacity: 0.85;
+}
+
+.legend-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background-color: #10B981;
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
 }
 </style>

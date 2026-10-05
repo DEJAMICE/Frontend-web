@@ -1,93 +1,124 @@
 <template>
   <div class="register-container">
     <div class="register-card">
-      <div class="brand-badge-center">
-        <div class="brand-shield-icon">
+      <!-- Centered Brand Header -->
+      <div class="brand-header text-center">
+        <div class="brand-shield-badge">
           <i class="pi pi-shield"></i>
         </div>
-        <h2 class="brand-title">SecuraNet</h2>
-        <span class="brand-subtitle">Smart Urban Safety</span>
+        <div class="brand-badge-label">SECURANET</div>
+        <h2 class="brand-title">Crear Cuenta Ciudadana</h2>
+        <p class="brand-subtitle">Regístrate para vincular tu red de confianza y acceder a rutas protegidas.</p>
       </div>
 
-      <h3 class="register-header">Crear Cuenta Ciudadana</h3>
-      <p class="register-desc">Regístrate para vincular tu red de confianza y acceder a rutas protegidas.</p>
-
-      <form @submit.prevent="handleRegister" class="p-fluid">
-        <div class="field">
-          <label for="fullName">Nombre Completo</label>
-          <InputText
+      <!-- Registration Form with full-width inputs -->
+      <form @submit.prevent="handleRegister" class="register-form">
+        <div class="form-group mb-3">
+          <label for="fullName" class="form-label">Nombre Completo</label>
+          <div class="input-icon-wrapper">
+            <i class="pi pi-user input-icon"></i>
+            <input
               id="fullName"
               v-model="registerForm.fullName"
               type="text"
-              required
+              class="form-input"
               placeholder="Ej. Mathias Cárdenas"
-          />
+              required
+            />
+          </div>
         </div>
 
-        <div class="field">
-          <label for="email">Correo electrónico</label>
-          <InputText
+        <div class="form-group mb-3">
+          <label for="email" class="form-label">Correo electrónico</label>
+          <div class="input-icon-wrapper">
+            <i class="pi pi-envelope input-icon"></i>
+            <input
               id="email"
               v-model="registerForm.email"
               type="email"
+              class="form-input"
+              placeholder="nombre@empresa.com"
               required
-              placeholder="ejemplo@correo.com"
-          />
+            />
+          </div>
         </div>
 
-        <div class="field">
-          <label for="phoneNumber">Teléfono Celular</label>
-          <InputText
+        <div class="form-group mb-3">
+          <label for="phoneNumber" class="form-label">Teléfono Celular</label>
+          <div class="input-icon-wrapper">
+            <i class="pi pi-phone input-icon"></i>
+            <input
               id="phoneNumber"
               v-model="registerForm.phoneNumber"
               type="tel"
+              class="form-input"
+              placeholder="+51 987 654 321"
               required
-              placeholder="+51987654321"
-          />
+            />
+          </div>
         </div>
 
-        <div class="field">
-          <label for="password">Contraseña</label>
-          <Password
+        <div class="form-group mb-3">
+          <label for="password" class="form-label">Contraseña</label>
+          <div class="input-icon-wrapper">
+            <i class="pi pi-lock input-icon"></i>
+            <input
               id="password"
               v-model="registerForm.password"
-              toggleMask
-              required
-              promptLabel="Ingresa una contraseña"
-              weakLabel="Débil"
-              mediumLabel="Media"
-              strongLabel="Fuerte"
+              :type="showPassword ? 'text' : 'password'"
+              class="form-input"
               placeholder="Mínimo 8 caracteres"
-          />
+              required
+            />
+            <button
+              type="button"
+              class="password-toggle-btn"
+              @click="showPassword = !showPassword"
+              title="Mostrar/ocultar contraseña"
+            >
+              <i :class="showPassword ? 'pi pi-eye-slash' : 'pi pi-eye'"></i>
+            </button>
+          </div>
         </div>
 
-        <div class="field">
-          <label for="profileType">¿Cuál es tu rutina principal?</label>
-          <Dropdown
+        <div class="form-group mb-3">
+          <label for="profileType" class="form-label">¿Cuál es tu rutina principal?</label>
+          <div class="select-wrapper">
+            <select
               id="profileType"
               v-model="registerForm.profileType"
-              :options="profileOptions"
-              optionLabel="label"
-              optionValue="value"
-              placeholder="Selecciona un perfil"
-          />
+              class="form-select"
+            >
+              <option value="Standard">Estándar (Uso cotidiano en ciudad)</option>
+              <option value="Student">Estudiante Universitario / Escolar</option>
+              <option value="NightWorker">Trabajador Nocturno (Salidas de madrugada)</option>
+            </select>
+          </div>
         </div>
 
-        <small v-if="errorMessage" class="p-error">{{ errorMessage }}</small>
+        <!-- Error message -->
+        <div v-if="errorMessage" class="error-alert mb-3">
+          <i class="pi pi-exclamation-circle mr-1"></i> {{ errorMessage }}
+        </div>
 
-        <Button
-            type="submit"
-            label="Crear Cuenta y Proteger mi Ruta"
-            :loading="isLoading"
-            class="mt-3 submit-btn"
-        />
+        <!-- Submit Button -->
+        <button
+          type="submit"
+          class="submit-button"
+          :disabled="isLoading"
+        >
+          <i v-if="isLoading" class="pi pi-spin pi-spinner mr-2"></i>
+          <span>{{ isLoading ? 'CREANDO CUENTA...' : 'CREAR CUENTA Y PROTEGER MI RUTA' }}</span>
+        </button>
       </form>
 
-      <div class="login-link mt-4 text-center">
-        ¿Ya tienes cuenta? <router-link to="/login">Inicia sesión</router-link>
+      <!-- Centered Login Footer -->
+      <div class="login-footer text-center mt-3">
+        <span>¿Ya tienes una cuenta? </span>
+        <router-link to="/login" class="login-link font-semibold">Inicia sesión</router-link>
       </div>
 
-      <div class="landing-back-link mt-3 text-center">
+      <div class="landing-link text-center mt-2">
         <a href="https://dejamice.github.io/Landing-Page/">
           <i class="pi pi-arrow-left mr-1"></i> Volver a la Landing Page
         </a>
@@ -105,11 +136,9 @@ import { useAuthStore } from '@/stores/authStore';
 const router = useRouter();
 const authStore = useAuthStore();
 
-const profileOptions = ref([
-  { label: 'Estándar', value: 'Standard' },
-  { label: 'Estudiante Universitario', value: 'Student' },
-  { label: 'Trabajador Nocturno', value: 'NightWorker' }
-]);
+const showPassword = ref(false);
+const isLoading = ref(false);
+const errorMessage = ref('');
 
 const registerForm = ref({
   fullName: '',
@@ -118,9 +147,6 @@ const registerForm = ref({
   password: '',
   profileType: 'Standard'
 });
-
-const isLoading = ref(false);
-const errorMessage = ref('');
 
 const handleRegister = async () => {
   isLoading.value = true;
@@ -152,113 +178,207 @@ const handleRegister = async () => {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background-color: var(--bg, #F4F8F8);
+  background-color: #F8FAFC;
+  background-image: radial-gradient(#CBD5E1 1px, transparent 1px);
+  background-size: 20px 20px;
   padding: 2rem 1.5rem;
 }
 
 .register-card {
-  background: white;
-  padding: 2.2rem;
-  border-radius: 12px;
-  border: 1.5px solid var(--border, #D7E4E6);
-  box-shadow: 0 4px 20px rgba(14, 68, 78, 0.06);
+  background: #FFFFFF;
+  padding: 2.5rem 2.2rem;
+  border-radius: 16px;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 10px 30px rgba(14, 68, 78, 0.08);
   width: 100%;
   max-width: 480px;
+  margin: 0 auto;
 }
 
-.brand-badge-center {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-bottom: 1.5rem;
+.brand-header {
+  margin-bottom: 1.8rem;
 }
 
-.brand-shield-icon {
+.brand-shield-badge {
   width: 48px;
   height: 48px;
   border-radius: 12px;
-  background-color: var(--brand, #0E444E);
-  color: var(--accent, #00A896);
-  display: flex;
+  background-color: #E6F7F5;
+  color: #0E444E;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.6rem;
-  margin-bottom: 8px;
-  box-shadow: 0 4px 10px rgba(14, 68, 78, 0.2);
+  font-size: 1.4rem;
+  margin-bottom: 10px;
+}
+
+.brand-badge-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748B;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: 4px;
 }
 
 .brand-title {
-  margin: 0;
-  font-size: 1.4rem;
+  margin: 0 0 4px 0;
+  font-size: 1.55rem;
   font-weight: 700;
-  color: var(--brand, #0E444E);
+  color: #0E444E;
 }
 
 .brand-subtitle {
-  font-size: 0.72rem;
-  color: var(--muted, #7A8A8C);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  margin: 0;
+  font-size: 0.85rem;
+  color: #64748B;
+  line-height: 1.4;
 }
 
-.register-header {
-  font-size: 1.15rem;
-  color: var(--ink, #1B2B2E);
-  margin: 0 0 4px 0;
-  font-weight: 600;
+.register-form {
+  width: 100%;
 }
 
-.register-desc {
-  font-size: 0.82rem;
-  color: var(--sub, #5A6B6E);
-  margin: 0 0 1.5rem 0;
+.form-group {
+  width: 100%;
 }
 
-.field {
-  margin-bottom: 1.2rem;
-}
-
-.field label {
+.form-label {
   display: block;
   font-size: 0.82rem;
   font-weight: 600;
-  color: var(--sub, #5A6B6E);
+  color: #1E293B;
   margin-bottom: 6px;
+  text-align: left;
 }
 
-.p-error {
-  color: var(--danger, #D32F2F);
-  display: block;
-  margin-bottom: 1rem;
-  font-size: 0.82rem;
+.input-icon-wrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
 }
 
-.submit-btn {
-  background-color: var(--brand, #0E444E) !important;
-  border-color: var(--brand, #0E444E) !important;
-  color: #FFFFFF !important;
-  font-weight: 600;
-  padding: 0.75rem;
+.input-icon {
+  position: absolute;
+  left: 12px;
+  color: #94A3B8;
+  font-size: 0.95rem;
+  pointer-events: none;
+}
+
+.form-input {
+  width: 100%;
+  height: 44px;
+  padding: 0.5rem 2.4rem 0.5rem 2.4rem;
+  border: 1px solid #CBD5E1;
   border-radius: 8px;
-  transition: background-color 0.15s;
+  font-size: 0.9rem;
+  color: #1E293B;
+  background-color: #FFFFFF;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
 }
 
-.submit-btn:hover {
-  background-color: var(--brand-hover, #155A66) !important;
-  border-color: var(--brand-hover, #155A66) !important;
+.form-input:focus {
+  outline: none;
+  border-color: #00A896;
+  box-shadow: 0 0 0 3px rgba(0, 168, 150, 0.15);
+}
+
+.select-wrapper {
+  width: 100%;
+}
+
+.form-select {
+  width: 100%;
+  height: 44px;
+  padding: 0.5rem 1rem;
+  border: 1px solid #CBD5E1;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  color: #1E293B;
+  background-color: #FFFFFF;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.form-select:focus {
+  outline: none;
+  border-color: #00A896;
+  box-shadow: 0 0 0 3px rgba(0, 168, 150, 0.15);
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 8px;
+  background: transparent;
+  border: none;
+  color: #94A3B8;
+  padding: 6px 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.password-toggle-btn:hover {
+  color: #0E444E;
+}
+
+.error-alert {
+  background-color: #FEF2F2;
+  border: 1px solid #FCA5A5;
+  color: #DC2626;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  display: flex;
+  align-items: center;
+}
+
+.submit-button {
+  width: 100%;
+  height: 46px;
+  background-color: #0E444E;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+  margin-top: 0.5rem;
+}
+
+.submit-button:hover:not(:disabled) {
+  background-color: #155A66;
+}
+
+.submit-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.login-footer {
+  font-size: 0.84rem;
+  color: #64748B;
 }
 
 .login-link {
-  font-size: 0.85rem;
-  color: var(--sub, #5A6B6E);
+  color: #0E444E;
+  text-decoration: underline;
 }
 
-.landing-back-link a {
-  font-size: 0.80rem;
-  color: var(--muted, #7A8A8C);
+.landing-link a {
+  font-size: 0.78rem;
+  color: #94A3B8;
+  text-decoration: none;
 }
 
-.landing-back-link a:hover {
-  color: var(--accent-ink, #00695C);
+.landing-link a:hover {
+  color: #00A896;
 }
 </style>

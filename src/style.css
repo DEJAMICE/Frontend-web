@@ -25,11 +25,51 @@
   --danger-hover: #B71C1C;
   --danger-soft: #FDECEA;
 
-  /* PrimeVue theme integration */
+/* PrimeVue theme integration & Form input fixes */
   --p-primary-color: #00A896;
   --p-primary-hover-color: #00917F;
   --surface-ground: #F4F8F8;
   --text-color: #1B2B2E;
+}
+
+/* Forzar que todos los inputs y recuadros ocupen el ancho completo del contenedor */
+.p-fluid .p-inputtext,
+.p-fluid .p-password,
+.p-fluid .p-dropdown,
+.p-fluid .p-select,
+.p-fluid .p-inputnumber,
+.p-fluid .p-button {
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.p-inputtext {
+  border-radius: 8px !important;
+  border-color: #D7E4E6 !important;
+  padding: 0.65rem 0.85rem !important;
+  font-size: 0.9rem !important;
+}
+
+.p-inputtext:focus {
+  border-color: #00A896 !important;
+  box-shadow: 0 0 0 2px rgba(0, 168, 150, 0.2) !important;
+}
+
+.p-password {
+  display: flex !important;
+  width: 100% !important;
+}
+
+.p-password input,
+.p-password .p-inputtext {
+  width: 100% !important;
+  flex: 1 1 auto !important;
+}
+
+.p-dropdown, .p-select {
+  width: 100% !important;
+  border-radius: 8px !important;
+  border-color: #D7E4E6 !important;
 }
 
 body {

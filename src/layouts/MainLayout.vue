@@ -15,27 +15,9 @@ const handleLogout = () => {
 const navItems = [
   {
     id: 'dashboard',
-    label: 'Panel Principal',
+    label: 'Dashboard',
     icon: 'pi pi-th-large',
     path: '/app/dashboard'
-  },
-  {
-    id: 'rutas',
-    label: 'Mapa & Rutas Seguras',
-    icon: 'pi pi-map',
-    path: '/app/rutas'
-  },
-  {
-    id: 'sos',
-    label: 'Botón de Pánico SOS',
-    icon: 'pi pi-bell',
-    path: '/app/sos'
-  },
-  {
-    id: 'historial',
-    label: 'Historial de Incidentes',
-    icon: 'pi pi-history',
-    path: '/app/historial'
   },
   {
     id: 'contactos',
@@ -44,14 +26,32 @@ const navItems = [
     path: '/app/contactos'
   },
   {
+    id: 'historial',
+    label: 'Historial de Alertas',
+    icon: 'pi pi-history',
+    path: '/app/historial'
+  },
+  {
     id: 'dispositivos',
     label: 'Dispositivos IoT',
-    icon: 'pi pi-compass',
+    icon: 'pi pi-microchip',
     path: '/app/dispositivos'
   },
   {
-    id: 'perfil',
-    label: 'Mi Perfil & Ajustes',
+    id: 'rutas',
+    label: 'Mapa de Rutas',
+    icon: 'pi pi-map',
+    path: '/app/rutas'
+  },
+  {
+    id: 'reportes',
+    label: 'Reportes',
+    icon: 'pi pi-file-edit',
+    path: '/app/reportes'
+  },
+  {
+    id: 'configuracion',
+    label: 'Configuración',
     icon: 'pi pi-cog',
     path: '/app/perfil'
   }
@@ -69,7 +69,7 @@ function isActive(path) {
 
 <template>
   <div class="prototype-layout">
-    <!-- Sidebar Deep Teal (#0E444E) idéntico a Fuentes/Prototype Code.txt -->
+    <!-- Sidebar Deep Teal (#0E444E) idéntico a las maquetas -->
     <aside class="prototype-sidebar">
       <!-- Logo Header -->
       <div class="sidebar-header" @click="router.push('/app/dashboard')">
@@ -78,13 +78,11 @@ function isActive(path) {
         </div>
         <div class="brand-text">
           <span class="brand-title">SecuraNet</span>
-          <span class="brand-subtitle">Smart Safety</span>
         </div>
       </div>
 
-      <!-- Navigation Menu -->
+      <!-- Navigation Menu matching Mockups -->
       <nav class="sidebar-nav">
-        <div class="nav-section-title">MENÚ PRINCIPAL</div>
         <ul class="nav-list">
           <li v-for="item in navItems" :key="item.id">
             <button
@@ -94,53 +92,66 @@ function isActive(path) {
             >
               <i :class="[item.icon, 'nav-icon']"></i>
               <span class="nav-label">{{ item.label }}</span>
-              <span v-if="item.id === 'sos'" class="sos-indicator-dot"></span>
             </button>
           </li>
         </ul>
       </nav>
 
-      <!-- User Card Footer -->
+      <!-- Sidebar Footer matching Cerrar Sesión en Mockups -->
       <div class="sidebar-footer">
-        <div class="user-pill" @click="router.push('/app/perfil')">
-          <div class="user-avatar">
-            {{ (authStore.user?.fullName || 'U')[0] }}
-          </div>
-          <div class="user-info">
-            <span class="user-name">{{ authStore.user?.fullName || 'Mathias Cárdenas' }}</span>
-            <span class="user-role">{{ authStore.user?.subscriptionPlan || 'Plan Premium' }}</span>
-          </div>
-        </div>
-        <button class="logout-btn" @click="handleLogout" title="Cerrar sesión">
-          <i class="pi pi-sign-out"></i>
+        <button class="logout-full-btn" @click="handleLogout">
+          <i class="pi pi-sign-out mr-2"></i>
+          <span>Cerrar Sesión</span>
         </button>
       </div>
     </aside>
 
     <!-- Main Content Area -->
     <div class="main-wrapper">
-      <!-- TopBar minimalista de la maqueta -->
+      <!-- TopBar matching Dashboard.png and all mockups -->
       <header class="prototype-topbar">
-        <div class="topbar-left">
-          <span class="breadcrumb-app">SecuraNet Web</span>
-          <i class="pi pi-angle-right breadcrumb-separator"></i>
-          <h2 class="breadcrumb-current">{{ currentTitle }}</h2>
+        <!-- Search bar matching mockup -->
+        <div class="topbar-search-box">
+          <i class="pi pi-search search-icon"></i>
+          <input
+            type="text"
+            placeholder="Buscar contactos, rutas, alertas..."
+            class="topbar-search-input"
+          />
         </div>
 
         <div class="topbar-right">
-          <div class="status-badge-active">
-            <span class="status-ping"></span>
-            <span>Red Segura Activa</span>
+          <!-- Conectado Pill matching mockup -->
+          <div class="status-connected-pill">
+            <i class="pi pi-bolt mr-1"></i>
+            <span>Conectado ✓</span>
           </div>
 
+          <!-- Notification Bell matching mockup -->
+          <div class="notification-bell-btn">
+            <i class="pi pi-bell"></i>
+            <span class="notification-badge-dot"></span>
+          </div>
+
+          <!-- User Info matching mockup -->
+          <div class="user-profile-widget" @click="router.push('/app/perfil')">
+            <div class="user-avatar-initials">
+              {{ (authStore.user?.fullName || 'CM').split(' ').map(n=>n[0]).slice(0,2).join('') }}
+            </div>
+            <div class="user-names-col">
+              <span class="widget-name font-bold">{{ authStore.user?.fullName || 'Carlos Mendoza' }}</span>
+              <span class="widget-role text-xs text-slate-400">{{ authStore.user?.subscriptionPlan || 'Administrador' }}</span>
+            </div>
+          </div>
+
+          <!-- Quick link to landing page -->
           <a
             href="https://dejamice.github.io/Landing-Page/"
             target="_blank"
-            class="topbar-action-link"
+            class="landing-pill-btn"
             title="Ver Landing Page pública"
           >
-            <i class="pi pi-external-link mr-1"></i>
-            Landing Page
+            <i class="pi pi-external-link"></i>
           </a>
         </div>
       </header>
@@ -359,21 +370,24 @@ function isActive(path) {
   color: var(--on-brand-sub, rgba(255,255,255,0.74));
 }
 
-.logout-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
+.logout-full-btn {
+  width: 100%;
+  height: 40px;
   background: transparent;
   border: 1px solid var(--brand-border, rgba(255,255,255,0.14));
+  border-radius: 8px;
   color: var(--on-brand-sub, rgba(255,255,255,0.74));
+  font-size: 0.88rem;
+  font-weight: 500;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  padding: 0 14px;
   cursor: pointer;
   transition: all 0.15s;
 }
 
-.logout-btn:hover {
+.logout-full-btn:hover {
   background-color: rgba(211, 47, 47, 0.2);
   border-color: var(--danger, #D32F2F);
   color: #ff8a80;
@@ -390,37 +404,49 @@ function isActive(path) {
 
 .prototype-topbar {
   height: 60px;
-  background-color: #FFFFFF;
-  border-bottom: 1px solid var(--border, #D7E4E6);
+  background-color: #0E444E;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 28px;
+  padding: 0 24px;
   flex-shrink: 0;
 }
 
-.topbar-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.topbar-search-box {
+  position: relative;
+  width: 320px;
 }
 
-.breadcrumb-app {
+.topbar-search-box .search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(255, 255, 255, 0.5);
   font-size: 0.85rem;
-  color: var(--muted, #7A8A8C);
-  font-weight: 500;
 }
 
-.breadcrumb-separator {
-  font-size: 0.75rem;
-  color: var(--faint, #A3B2B4);
+.topbar-search-input {
+  width: 100%;
+  height: 36px;
+  padding: 0.3rem 0.8rem 0.3rem 2.2rem;
+  background-color: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: #FFFFFF;
+  font-size: 0.82rem;
+  outline: none;
+  box-sizing: border-box;
 }
 
-.breadcrumb-current {
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: var(--ink, #1B2B2E);
-  margin: 0;
+.topbar-search-input::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.topbar-search-input:focus {
+  background-color: rgba(255, 255, 255, 0.14);
+  border-color: #00A896;
 }
 
 .topbar-right {
@@ -429,50 +455,110 @@ function isActive(path) {
   gap: 16px;
 }
 
-.status-badge-active {
+.status-connected-pill {
   display: flex;
   align-items: center;
-  gap: 6px;
-  background-color: var(--accent-soft, #E1F4F1);
-  color: var(--accent-ink, #00695C);
-  border: 1px solid var(--accent-border, #9FD9D0);
-  padding: 4px 10px;
+  background-color: rgba(0, 168, 150, 0.15);
+  border: 1px solid #00A896;
+  color: #00E5CC;
+  padding: 4px 12px;
   border-radius: 999px;
   font-size: 0.78rem;
   font-weight: 600;
 }
 
-.status-ping {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background-color: var(--accent, #00A896);
-}
-
-.topbar-action-link {
-  font-size: 0.82rem;
-  color: var(--sub, #5A6B6E);
-  font-weight: 500;
+.notification-bell-btn {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background-color: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #FFFFFF;
   display: flex;
   align-items: center;
-  padding: 5px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--border, #D7E4E6);
-  background-color: #FFFFFF;
-  transition: all 0.15s;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.9rem;
 }
 
-.topbar-action-link:hover {
-  background-color: var(--panel, #EAF4F4);
-  color: var(--accent-ink, #00695C);
-  border-color: var(--accent-border, #9FD9D0);
-  text-decoration: none;
+.notification-badge-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #EF4444;
+}
+
+.user-profile-widget {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: background-color 0.15s;
+}
+
+.user-profile-widget:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.user-avatar-initials {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.15);
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  color: #FFFFFF;
+  font-weight: 700;
+  font-size: 0.78rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-names-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.widget-name {
+  font-size: 0.82rem;
+  color: #FFFFFF;
+  line-height: 1.2;
+}
+
+.widget-role {
+  font-size: 0.68rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.landing-pill-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background-color: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.landing-pill-btn:hover {
+  background-color: rgba(255, 255, 255, 0.18);
+  color: #00E5CC;
 }
 
 .content-viewport {
   flex: 1;
   overflow-y: auto;
   padding: 24px 28px;
-  background-color: var(--bg, #F4F8F8);
+  background-color: #F8FAFC;
 }
 </style>
