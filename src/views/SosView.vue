@@ -22,15 +22,15 @@ async function handleEmitSos() {
     const payload = {
       latitude: -12.0864,
       longitude: -77.0321,
-      type: 'WEB_PANIC_BUTTON',
-      severity: 'CRITICAL',
+      type: 'PanicButton',
+      severity: 'Critical',
       locationAddress: 'Av. Salaverry / Campus San Isidro',
       userId: authStore.user?.id || 'usr_001',
-      userName: authStore.user?.fullName || 'Jesús Godoy'
+      userName: authStore.user?.fullName || 'Usuario Demo SafeSignal'
     };
 
     const res = await alertsService.emitAlert(payload);
-    currentAlert.value = res.data;
+    currentAlert.value = res.data || res;
     isSosModalVisible.value = true;
   } catch (err) {
     toast.add({ severity: 'error', summary: 'Error', detail: 'Fallo al transmitir la señal SOS.', life: 3000 });

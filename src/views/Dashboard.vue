@@ -32,7 +32,7 @@ async function loadHistory() {
   isLoadingHistory.value = true;
   try {
     const res = await alertsService.getAlertHistory();
-    alertHistory.value = res.data || [];
+    alertHistory.value = Array.isArray(res) ? res : (res.data || []);
   } catch (err) {
     console.error('Error al cargar historial de alertas:', err);
   } finally {
@@ -46,15 +46,15 @@ async function triggerSos() {
     const payload = {
       latitude: -12.0864,
       longitude: -77.0321,
-      type: 'WEB_PANIC_BUTTON',
-      severity: 'CRITICAL',
+      type: 'PanicButton',
+      severity: 'Critical',
       locationAddress: 'Av. Salaverry / Campus San Isidro',
       userId: authStore.user?.id || 'usr_001',
-      userName: authStore.user?.fullName || 'Jesús Godoy'
+      userName: authStore.user?.fullName || 'Usuario Demo SafeSignal'
     };
 
     const res = await alertsService.emitAlert(payload);
-    currentActiveAlert.value = res.data;
+    currentActiveAlert.value = res.data || res;
     isSosModalVisible.value = true;
 
     toast.add({

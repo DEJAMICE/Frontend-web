@@ -14,7 +14,7 @@ async function fetchHistory() {
   isLoading.value = true;
   try {
     const res = await alertsService.getAlertHistory();
-    alertsList.value = res.data || [];
+    alertsList.value = Array.isArray(res) ? res : (res.data || []);
   } catch (err) {
     console.error('Error al cargar historial:', err);
   } finally {
@@ -23,7 +23,7 @@ async function fetchHistory() {
 }
 
 function getSeverityBadge(severity) {
-  switch (severity) {
+  switch ((severity || '').toUpperCase()) {
     case 'CRITICAL': return 'danger';
     case 'HIGH': return 'warn';
     case 'MEDIUM': return 'info';
@@ -32,7 +32,7 @@ function getSeverityBadge(severity) {
 }
 
 function getStatusBadge(status) {
-  switch (status) {
+  switch ((status || '').toUpperCase()) {
     case 'ACTIVE': return 'danger';
     case 'RESOLVED': return 'success';
     case 'CANCELLED': return 'secondary';
