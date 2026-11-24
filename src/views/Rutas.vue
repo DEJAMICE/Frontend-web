@@ -1,11 +1,25 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import Toast from 'primevue/toast';
 import { useToast } from 'primevue/usetoast';
 import SafeRouteMap from '../components/SafeRouteMap.vue';
 import trackingService from '../services/tracking.service';
+import { useFeature } from '../composables/useFeature';
+import { track, trackExposure } from '../composables/useAnalytics';
 
+const route = useRoute();
+const router = useRouter();
 const toast = useToast();
+const isSafeRouteNav = useFeature('exp02_safe_route_nav');
+const showReportsLayer = ref(true);
+
+function toggleReportsLayer() {
+  showReportsLayer.value = !showReportsLayer.value;
+  if (showReportsLayer.value) {
+    track('report_layer_viewed', {}, 'EXP-02');
+  }
+}
 
 // Presets de Lima para configuración rápida
 const routePresets = [
@@ -138,6 +152,7 @@ function toggleRouteAlternative() {
 
 async function handleStartNavigation() {
   isNavigating.value = true;
+  track('safe_route_started', { travel_mode: travelMode.value }, 'EXP-02');
   try {
     await trackingService.startTracking({
       originAddress: origin.value.name,
@@ -159,6 +174,7 @@ async function handleStartNavigation() {
 
 function handleStopNavigation() {
   isNavigating.value = false;
+  track('route_completed', { travel_mode: travelMode.value }, 'EXP-02');
   try {
     trackingService.stopTracking('rt_active');
   } catch (e) {}
@@ -170,6 +186,16 @@ function handleStopNavigation() {
     life: 3000
   });
 }
+
+onMounted(() => {
+  trackExposure('EXP-02');
+  if (typeof route.query?.q === 'string' && route.query.q.trim()) {
+    destination.value.name = route.query.q.trim();
+  }
+  if (isSafeRouteNav.value && showReportsLayer.value) {
+    track('report_layer_viewed', {}, 'EXP-02');
+  }
+});
 </script>
 
 <template>
@@ -183,9 +209,29 @@ function handleStopNavigation() {
           <h1 class="routes-title">Rutas Seguras con IA</h1>
           <p class="routes-subtitle">Planifica recorridos por calles reales esquivando focos delictivos y zonas oscuras</p>
         </div>
-        <div class="status-indicator-badge" :class="isNavigating ? 'nav-active' : 'nav-idle'">
-          <span class="status-dot"></span>
-          <span>{{ isNavigating ? 'TELEMETRÍA EN VIVO ACTIVA' : 'SISTEMA DE CALLES CONECTADO' }}</span>
+        <div class="flex align-items-center gap-2 flex-wrap">
+          <button
+            v-if="isSafeRouteNav"
+            type="button"
+            class="preset-btn"
+            :class="{ active: showReportsLayer }"
+            @click="toggleReportsLayer"
+          >
+            <i class="pi pi-exclamation-triangle mr-1"></i>
+            {{ showReportsLayer ? 'Capa de reportes: Visible' : 'Capa de reportes: Oculta' }}
+          </button>
+          <button
+            v-if="isSafeRouteNav"
+            type="button"
+            class="preset-btn"
+            @click="router.push('/app/reportes')"
+          >
+            <i class="pi pi-plus-circle mr-1"></i> Publicar reporte
+          </button>
+          <div class="status-indicator-badge" :class="isNavigating ? 'nav-active' : 'nav-idle'">
+            <span class="status-dot"></span>
+            <span>{{ isNavigating ? 'TELEMETRÍA EN VIVO ACTIVA' : 'SISTEMA DE CALLES CONECTADO' }}</span>
+          </div>
         </div>
       </div>
     </div>

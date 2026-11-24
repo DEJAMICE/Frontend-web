@@ -3,63 +3,88 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '../stores/authStore';
 import { notificationsService } from '../services';
+import { useFeature } from '../composables/useFeature';
+import { track, trackExposure } from '../composables/useAnalytics';
 
 const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
+const isSafeRouteNav = useFeature('exp02_safe_route_nav');
 
 const handleLogout = () => {
   authStore.logout();
   router.push('/login');
 };
 
-const navItems = [
-  {
-    id: 'dashboard',
-    label: 'Dashboard',
-    icon: 'pi pi-th-large',
-    path: '/app/dashboard'
-  },
-  {
-    id: 'contactos',
-    label: 'Red de Confianza',
-    icon: 'pi pi-users',
-    path: '/app/contactos'
-  },
-  {
-    id: 'historial',
-    label: 'Historial de Alertas',
-    icon: 'pi pi-history',
-    path: '/app/historial'
-  },
-  {
-    id: 'dispositivos',
-    label: 'Dispositivos IoT',
-    icon: 'pi pi-microchip',
-    path: '/app/dispositivos'
-  },
-  {
-    id: 'rutas',
-    label: 'Mapa de Rutas',
-    icon: 'pi pi-map',
-    path: '/app/rutas'
-  },
-  {
-    id: 'reportes',
-    label: 'Reportes',
-    icon: 'pi pi-file-edit',
-    path: '/app/reportes'
-  },
-  {
+const navItems = computed(() => {
+  const base = [
+    {
+      id: 'dashboard',
+      label: 'Dashboard',
+      icon: 'pi pi-th-large',
+      path: '/app/dashboard'
+    },
+    {
+      id: 'contactos',
+      label: 'Red de Confianza',
+      icon: 'pi pi-users',
+      path: '/app/contactos'
+    },
+    {
+      id: 'historial',
+      label: 'Historial de Alertas',
+      icon: 'pi pi-history',
+      path: '/app/historial'
+    },
+    {
+      id: 'dispositivos',
+      label: 'Dispositivos IoT',
+      icon: 'pi pi-microchip',
+      path: '/app/dispositivos'
+    }
+  ];
+
+  if (isSafeRouteNav.value) {
+    base.push({
+      id: 'ruta-segura',
+      label: 'Ruta segura',
+      icon: 'pi pi-shield',
+      path: '/app/rutas'
+    });
+  } else {
+    base.push(
+      {
+        id: 'rutas',
+        label: 'Mapa de Rutas',
+        icon: 'pi pi-map',
+        path: '/app/rutas'
+      },
+      {
+        id: 'reportes',
+        label: 'Reportes',
+        icon: 'pi pi-file-edit',
+        path: '/app/reportes'
+      }
+    );
+  }
+
+  base.push({
     id: 'configuracion',
     label: 'Configuración',
     icon: 'pi pi-cog',
     path: '/app/perfil'
-  }
-];
+  });
+
+  return base;
+});
+
+function navigateTo(item) {
+  track('nav_tab_selected', { tab_id: item.id, tab_label: item.label }, 'EXP-02');
+  router.push(item.path);
+}
 
 const currentTitle = computed(() => {
-  const current = navItems.find(item => route.path.startsWith(item.path));
+  const current = navItems.value.find(item => route.path.startsWith(item.path));
   return current ? current.label : 'Plataforma de Seguridad';
 });
 
@@ -138,6 +163,7 @@ onMounted(() => {
   // Sincronizar perfil real del usuario autenticado desde /users/me
   authStore.fetchUserProfile();
   loadNotifications();
+  trackExposure('EXP-02');
 });
 </script>
 
@@ -162,7 +188,7 @@ onMounted(() => {
             <button
               class="nav-button"
               :class="{ active: isActive(item.path) }"
-              @click="router.push(item.path)"
+              @click="navigateTo(item)"
             >
               <i :class="[item.icon, 'nav-icon']"></i>
               <span class="nav-label">{{ item.label }}</span>

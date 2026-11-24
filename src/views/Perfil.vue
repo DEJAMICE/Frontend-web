@@ -2,8 +2,26 @@
 import { ref, onMounted } from 'vue';
 import { useAuthStore } from '@/stores/authStore';
 import { authService, apiClient } from '@/services';
+import { useFeature } from '@/composables/useFeature';
+import { hasAnalyticsConsent, setAnalyticsConsent, track } from '@/composables/useAnalytics';
 
 const authStore = useAuthStore();
+const isConfigurableCountdown = useFeature('exp01_configurable_countdown');
+
+const countdownOptions = ref([
+  { label: '5 segundos (Estándar)', value: 5 },
+  { label: '7 segundos (Recomendado)', value: 7 },
+  { label: '10 segundos (Extendido)', value: 10 }
+]);
+
+const privacyForm = ref({
+  analyticsConsentGranted: hasAnalyticsConsent(),
+  autoAlertCountdownSeconds: authStore.user?.autoAlertCountdownSeconds || 5
+});
+
+const loadingPrivacy = ref(false);
+const privacyMessage = ref('');
+const privacyError = ref(false);
 
 const profileOptions = ref([
   { label: 'Estándar', value: 'Standard' },
@@ -26,6 +44,10 @@ onMounted(() => {
     profileForm.value.fullName = authStore.user.fullName;
     profileForm.value.phoneNumber = authStore.user.phoneNumber;
     profileForm.value.profileType = authStore.user.profileType;
+    privacyForm.value.analyticsConsentGranted =
+      authStore.user.analyticsConsentGranted ?? hasAnalyticsConsent();
+    privacyForm.value.autoAlertCountdownSeconds =
+      authStore.user.autoAlertCountdownSeconds || 5;
   }
 });
 
@@ -101,6 +123,36 @@ const updateSubscription = async () => {
     subMessage.value = error.message || 'Error al actualizar la suscripción.';
   } finally {
     loadingSub.value = false;
+  }
+};
+
+const saveExperimentPreferences = async () => {
+  loadingPrivacy.value = true;
+  privacyMessage.value = '';
+  try {
+    await setAnalyticsConsent(privacyForm.value.analyticsConsentGranted, true);
+    const payload = {
+      analyticsConsentGranted: privacyForm.value.analyticsConsentGranted,
+      ...(isConfigurableCountdown.value && {
+        autoAlertCountdownSeconds: privacyForm.value.autoAlertCountdownSeconds
+      })
+    };
+    const response = await apiClient.patch('/users/me/preferences', payload);
+    authStore.setAuth(authStore.token, response.data);
+    if (isConfigurableCountdown.value) {
+      track(
+        'countdown_setting_changed',
+        { countdown_seconds: privacyForm.value.autoAlertCountdownSeconds },
+        'EXP-01'
+      );
+    }
+    privacyError.value = false;
+    privacyMessage.value = 'Preferencias de privacidad y experimentación guardadas.';
+  } catch (error) {
+    privacyError.value = true;
+    privacyMessage.value = error.message || 'No se pudieron guardar las preferencias.';
+  } finally {
+    loadingPrivacy.value = false;
   }
 };
 </script>
@@ -259,6 +311,42 @@ const updateSubscription = async () => {
             </small>
 
             <Button type="submit" label="Actualizar Plan" severity="success" :loading="loadingSub" class="mt-3" />
+          </form>
+        </template>
+      </Card>
+
+      <Card class="profile-card">
+        <template #title>Privacidad y Preferencias Experimentales</template>
+        <template #content>
+          <form @submit.prevent="saveExperimentPreferences" class="p-fluid">
+            <div class="field flex align-items-center gap-2">
+              <input
+                id="consentToggle"
+                v-model="privacyForm.analyticsConsentGranted"
+                type="checkbox"
+                style="width: 18px; height: 18px; cursor: pointer;"
+              />
+              <label for="consentToggle" class="m-0" style="cursor: pointer;">
+                Participar en mejoras del producto (analítica seudonimizada, Ley N.º 29733)
+              </label>
+            </div>
+
+            <div v-if="isConfigurableCountdown" class="field">
+              <label for="countdownSelect">Cuenta regresiva de alertas automáticas (EXP-01)</label>
+              <Dropdown
+                id="countdownSelect"
+                v-model="privacyForm.autoAlertCountdownSeconds"
+                :options="countdownOptions"
+                optionLabel="label"
+                optionValue="value"
+              />
+            </div>
+
+            <small v-if="privacyMessage" :class="privacyError ? 'p-error' : 'p-success'">
+              {{ privacyMessage }}
+            </small>
+
+            <Button type="submit" label="Guardar Preferencias" :loading="loadingPrivacy" class="mt-3" />
           </form>
         </template>
       </Card>

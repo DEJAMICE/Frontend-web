@@ -1,6 +1,9 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/authStore';
+import { useFeature } from '../composables/useFeature';
+import { track, trackExposure } from '../composables/useAnalytics';
 import Card from 'primevue/card';
 import Button from 'primevue/button';
 import DataTable from 'primevue/datatable';
@@ -13,8 +16,23 @@ import SafeRouteMap from '../components/SafeRouteMap.vue';
 import EmergencySosModal from '../components/EmergencySosModal.vue';
 import alertsService from '../services/alerts.service';
 
+const router = useRouter();
 const authStore = useAuthStore();
 const toast = useToast();
+const isSafeRouteNav = useFeature('exp02_safe_route_nav');
+const quickDestination = ref('');
+const offlineRouteError = ref('');
+
+function openSafeRouteSearch() {
+  offlineRouteError.value = '';
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    offlineRouteError.value = 'Sin conexión: no podemos calcular rutas ahora';
+    return;
+  }
+  track('route_search_started', { entry_point: 'dashboard_card' }, 'EXP-02');
+  const query = quickDestination.value.trim();
+  router.push(query ? { path: '/app/rutas', query: { q: query } } : '/app/rutas');
+}
 
 const isSosModalVisible = ref(false);
 const currentActiveAlert = ref(null);
@@ -122,6 +140,8 @@ function formatDate(isoDate) {
 }
 
 onMounted(async () => {
+  trackExposure('EXP-02');
+  track('dashboard_viewed', {}, 'EXP-02');
   loadHistory();
   try {
     const { contactsService, devicesService } = await import('../services');
@@ -191,6 +211,36 @@ onMounted(async () => {
         <div class="kpi-subtext">Sincronizados vía Bluetooth BLE</div>
       </div>
     </div>
+
+    <!-- EXP-02 Variante B (US20): Acceso directo desde Dashboard -->
+    <Card v-if="isSafeRouteNav" class="dashboard-card shadow-1 mb-4">
+      <template #content>
+        <div class="flex flex-wrap align-items-center justify-content-between gap-3">
+          <div>
+            <div class="text-sm font-bold text-900 flex align-items-center gap-2">
+              <i class="pi pi-compass text-primary"></i>
+              <span>¿A dónde vas?</span>
+            </div>
+            <p class="text-xs text-600 m-0 mt-1">Inicia una ruta segura recomendada evitando zonas de riesgo en un toque.</p>
+          </div>
+          <div class="flex flex-wrap align-items-center gap-2 flex-1 justify-content-end" style="min-width: 240px;">
+            <InputText
+              v-model="quickDestination"
+              placeholder="Ej. Av. Salaverry, Miraflores..."
+              class="w-full sm:w-16rem"
+              @keyup.enter="openSafeRouteSearch"
+            />
+            <Button
+              label="Buscar ruta segura"
+              icon="pi pi-arrow-right"
+              iconPos="right"
+              @click="openSafeRouteSearch"
+            />
+          </div>
+        </div>
+        <small v-if="offlineRouteError" class="text-red-600 block mt-2">{{ offlineRouteError }}</small>
+      </template>
+    </Card>
 
     <div class="grid">
       <!-- ÁREA IZQUIERDA: MAPA INTERACTIVO Y RUTAS SEGURAS (Módulo C) -->

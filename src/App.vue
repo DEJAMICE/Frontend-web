@@ -1,9 +1,26 @@
 <template>
   <router-view />
+  <PrivacyConsentBanner />
 </template>
 
 <script setup>
-// SafeSignal Root Component
+import { onMounted, watch } from 'vue';
+import { useAuthStore } from './stores/authStore';
+import { loadFeatures } from './composables/useFeature';
+import PrivacyConsentBanner from './components/PrivacyConsentBanner.vue';
+
+const authStore = useAuthStore();
+
+onMounted(() => {
+  loadFeatures();
+});
+
+watch(
+  () => authStore.token,
+  () => {
+    loadFeatures();
+  }
+);
 </script>
 
 <style>
