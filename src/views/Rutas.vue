@@ -13,6 +13,53 @@ const router = useRouter();
 const toast = useToast();
 const isSafeRouteNav = useFeature('exp02_safe_route_nav');
 const showReportsLayer = ref(true);
+const focusedIncident = ref(null);
+
+const LIMA_PLACES = [
+  { keys: ['san isidro', 'upc san isidro'], lat: -12.0864, lng: -77.0321 },
+  { keys: ['salaverry'], lat: -12.0945, lng: -77.0480 },
+  { keys: ['monterrico', 'upc monterrico', 'surco'], lat: -12.1041, lng: -76.9632 },
+  { keys: ['javier prado'], lat: -12.0905, lng: -77.0223 },
+  { keys: ['kennedy', 'miraflores'], lat: -12.1218, lng: -77.0298 },
+  { keys: ['larcomar'], lat: -12.1325, lng: -77.0305 },
+  { keys: ['lince'], lat: -12.0837, lng: -77.0365 },
+  { keys: ['jesus maria', 'jesús maría'], lat: -12.0752, lng: -77.0468 },
+  { keys: ['san borja'], lat: -12.0982, lng: -77.0022 },
+  { keys: ['barranco'], lat: -12.1489, lng: -77.0217 },
+  { keys: ['magdalena'], lat: -12.0906, lng: -77.0715 },
+  { keys: ['pueblo libre'], lat: -12.0758, lng: -77.0628 },
+  { keys: ['lima centro', 'cercado', 'plaza'], lat: -12.0464, lng: -77.0428 },
+  { keys: ['los olivos'], lat: -11.9912, lng: -77.0706 },
+  { keys: ['comas', 'tupac amaru', 'túpac amaru'], lat: -11.9367, lng: -77.0486 },
+  { keys: ['san martin', 'san martín'], lat: -12.0125, lng: -77.0653 },
+  { keys: ['callao'], lat: -12.0566, lng: -77.1181 },
+  { keys: ['villa el salvador'], lat: -12.2127, lng: -76.9425 },
+];
+
+async function resolvePlaceCoords(placeName, currentPoint) {
+  const normalized = (placeName || '').toLowerCase();
+  const presetMatch = LIMA_PLACES.find((p) => p.keys.some((k) => normalized.includes(k)));
+  if (presetMatch) {
+    return { ...currentPoint, lat: presetMatch.lat, lng: presetMatch.lng };
+  }
+  try {
+    const q = encodeURIComponent(`${placeName}, Lima, Peru`);
+    const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${q}`);
+    if (resp.ok) {
+      const results = await resp.json();
+      if (Array.isArray(results) && results.length > 0) {
+        return {
+          ...currentPoint,
+          lat: parseFloat(results[0].lat),
+          lng: parseFloat(results[0].lon),
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('Geocoding fallback:', err);
+  }
+  return { ...currentPoint };
+}
 
 function toggleReportsLayer() {
   showReportsLayer.value = !showReportsLayer.value;
@@ -124,13 +171,19 @@ function handleRouteCalculated(data) {
   isCalculating.value = false;
 }
 
-function calculateRoute() {
+async function calculateRoute() {
   isCalculating.value = true;
   isNavigating.value = false;
+  focusedIncident.value = null;
   activeRouteType.value = 'safe';
-  // Disparará la reactividad en SafeRouteMap al clonar objetos
-  origin.value = { ...origin.value };
-  destination.value = { ...destination.value };
+
+  const [resolvedOrigin, resolvedDest] = await Promise.all([
+    resolvePlaceCoords(origin.value.name, origin.value),
+    resolvePlaceCoords(destination.value.name, destination.value),
+  ]);
+
+  origin.value = resolvedOrigin;
+  destination.value = resolvedDest;
   toast.add({
     severity: 'success',
     summary: 'Ruta Segura IA Optimizada',
@@ -187,10 +240,19 @@ function handleStopNavigation() {
   });
 }
 
-onMounted(() => {
+onMounted(async () => {
   trackExposure('EXP-02');
   if (typeof route.query?.q === 'string' && route.query.q.trim()) {
     destination.value.name = route.query.q.trim();
+    destination.value = await resolvePlaceCoords(destination.value.name, destination.value);
+  }
+  if (route.query?.focusLat && route.query?.focusLng) {
+    focusedIncident.value = {
+      lat: parseFloat(route.query.focusLat),
+      lng: parseFloat(route.query.focusLng),
+      label: route.query.focusLabel || 'Incidente reportado',
+      category: route.query.focusCat || 'Incidente'
+    };
   }
   if (isSafeRouteNav.value && showReportsLayer.value) {
     track('report_layer_viewed', {}, 'EXP-02');
@@ -418,6 +480,8 @@ onMounted(() => {
             :origin="origin"
             :destination="destination"
             :travelMode="travelMode"
+            :showIncidents="showReportsLayer"
+            :focusedIncident="focusedIncident"
             :activeRoute="activeRouteType"
             :isNavigating="isNavigating"
             @pointSelected="handlePointSelected"

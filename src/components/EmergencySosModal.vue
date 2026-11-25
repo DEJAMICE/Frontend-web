@@ -1,9 +1,12 @@
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onBeforeUnmount } from 'vue';
 import Dialog from 'primevue/dialog';
 import Button from 'primevue/button';
 import ProgressBar from 'primevue/progressbar';
 import alertsService from '../services/alerts.service';
+import { useAuthStore } from '../stores/authStore';
+import { useFeature } from '../composables/useFeature';
+import { track } from '../composables/useAnalytics';
 
 const props = defineProps({
   visible: {
@@ -18,7 +21,16 @@ const props = defineProps({
 
 const emit = defineEmits(['update:visible', 'resolved', 'cancelled']);
 
-const countdown = ref(15);
+const authStore = useAuthStore();
+const isConfigurableCountdown = useFeature('exp01_configurable_countdown');
+
+const totalSeconds = computed(() => {
+  if (!isConfigurableCountdown.value) return 5;
+  const configured = Number(authStore.user?.autoAlertCountdownSeconds);
+  return configured >= 5 && configured <= 10 ? configured : 7;
+});
+
+const countdown = ref(5);
 let timer = null;
 const isProcessing = ref(false);
 const cancellationReason = ref('');
@@ -30,7 +42,14 @@ const isVisible = computed({
 
 watch(() => props.visible, (newVal) => {
   if (newVal) {
-    countdown.value = 15;
+    const startSec = totalSeconds.value;
+    countdown.value = startSec;
+    if (isConfigurableCountdown.value) {
+      track('auto_alert_triggered', { countdown_seconds: startSec }, 'EXP-01');
+      if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+        navigator.vibrate([200, 120, 200]);
+      }
+    }
     if (timer) clearInterval(timer);
     timer = setInterval(() => {
       if (countdown.value > 0) {
@@ -51,6 +70,9 @@ async function handleCancelAlert() {
   try {
     const alertId = props.alertData?.id || 'alt_curr';
     await alertsService.cancelAlert(alertId, cancellationReason.value || 'Falsa alarma / Activación por prueba');
+    if (isConfigurableCountdown.value && countdown.value > 0) {
+      track('countdown_cancelled', { countdown_seconds: totalSeconds.value }, 'EXP-01');
+    }
     emit('cancelled', alertId);
     isVisible.value = false;
   } catch (err) {
@@ -98,10 +120,10 @@ async function handleResolveAlert() {
       <!-- Contador de despacho automático -->
       <div class="surface-100 p-3 border-round mb-3 text-left">
         <div class="flex justify-content-between align-items-center mb-2">
-          <span class="text-xs font-semibold text-700">Despacho de patrulla policial en:</span>
-          <span class="text-sm font-bold text-red-600">{{ countdown }}s</span>
+          <span class="text-xs font-semibold text-700">Despacho automático de alerta en:</span>
+          <span class="text-sm font-bold text-red-600">{{ countdown }}s / {{ totalSeconds }}s</span>
         </div>
-        <ProgressBar :value="((15 - countdown) / 15) * 100" :showValue="false" style="height: 6px;" />
+        <ProgressBar :value="((totalSeconds - countdown) / totalSeconds) * 100" :showValue="false" style="height: 6px;" />
       </div>
 
       <!-- Datos de la Alerta -->
@@ -137,11 +159,12 @@ async function handleResolveAlert() {
           @click="handleResolveAlert"
         />
         <Button
-          label="Cancelar Alerta (Falsa Alarma)"
+          :label="isConfigurableCountdown ? 'ESTOY BIEN (Cancelar alerta)' : 'Cancelar Alerta (Falsa Alarma)'"
           icon="pi pi-times"
-          severity="secondary"
-          outlined
-          class="w-full font-semibold"
+          :severity="isConfigurableCountdown ? 'warn' : 'secondary'"
+          :outlined="!isConfigurableCountdown"
+          class="w-full font-bold"
+          :class="{ 'p-button-lg': isConfigurableCountdown }"
           :loading="isProcessing"
           @click="handleCancelAlert"
         />

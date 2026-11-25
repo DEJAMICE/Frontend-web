@@ -5,11 +5,13 @@ import { useAuthStore } from '../stores/authStore';
 import { notificationsService } from '../services';
 import { useFeature } from '../composables/useFeature';
 import { track, trackExposure } from '../composables/useAnalytics';
+import { useI18n } from '../composables/useI18n';
 
 const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
 const isSafeRouteNav = useFeature('exp02_safe_route_nav');
+const { t, shortCode, toggleLocale } = useI18n();
 
 const handleLogout = () => {
   authStore.logout();
@@ -17,28 +19,29 @@ const handleLogout = () => {
 };
 
 const navItems = computed(() => {
+  const labels = t.value.nav;
   const base = [
     {
       id: 'dashboard',
-      label: 'Dashboard',
+      label: labels.dashboard,
       icon: 'pi pi-th-large',
       path: '/app/dashboard'
     },
     {
       id: 'contactos',
-      label: 'Red de Confianza',
+      label: labels.contacts,
       icon: 'pi pi-users',
       path: '/app/contactos'
     },
     {
       id: 'historial',
-      label: 'Historial de Alertas',
+      label: labels.history,
       icon: 'pi pi-history',
       path: '/app/historial'
     },
     {
       id: 'dispositivos',
-      label: 'Dispositivos IoT',
+      label: labels.devices,
       icon: 'pi pi-microchip',
       path: '/app/dispositivos'
     }
@@ -47,7 +50,7 @@ const navItems = computed(() => {
   if (isSafeRouteNav.value) {
     base.push({
       id: 'ruta-segura',
-      label: 'Ruta segura',
+      label: labels.safeRoute,
       icon: 'pi pi-shield',
       path: '/app/rutas'
     });
@@ -55,13 +58,13 @@ const navItems = computed(() => {
     base.push(
       {
         id: 'rutas',
-        label: 'Mapa de Rutas',
+        label: labels.routes,
         icon: 'pi pi-map',
         path: '/app/rutas'
       },
       {
         id: 'reportes',
-        label: 'Reportes',
+        label: labels.reports,
         icon: 'pi pi-file-edit',
         path: '/app/reportes'
       }
@@ -70,7 +73,7 @@ const navItems = computed(() => {
 
   base.push({
     id: 'configuracion',
-    label: 'Configuración',
+    label: labels.settings,
     icon: 'pi pi-cog',
     path: '/app/perfil'
   });
@@ -201,7 +204,7 @@ onMounted(() => {
       <div class="sidebar-footer">
         <button class="logout-full-btn" @click="handleLogout">
           <i class="pi pi-sign-out mr-2"></i>
-          <span>Cerrar Sesión</span>
+          <span>{{ t.topbar.logout }}</span>
         </button>
       </div>
     </aside>
@@ -215,16 +218,29 @@ onMounted(() => {
           <i class="pi pi-search search-icon"></i>
           <input
             type="text"
-            placeholder="Buscar contactos, rutas, alertas..."
+            :placeholder="t.topbar.searchPlaceholder"
             class="topbar-search-input"
           />
         </div>
 
         <div class="topbar-right">
+          <!-- Selector de idioma (ES / EN) según Hallazgo #3 de auditoría -->
+          <button
+            type="button"
+            class="status-connected-pill"
+            style="cursor: pointer; background: #F8FAFC; color: #0E444E; border: 1px solid #CBD5E1;"
+            :aria-label="t.topbar.switchLangLabel"
+            :title="t.topbar.switchLangLabel"
+            @click="toggleLocale"
+          >
+            <i class="pi pi-globe mr-1"></i>
+            <span>{{ shortCode }}</span>
+          </button>
+
           <!-- Conectado Pill matching mockup -->
           <div class="status-connected-pill">
             <i class="pi pi-bolt mr-1"></i>
-            <span>Conectado ✓</span>
+            <span>{{ t.topbar.connected }}</span>
           </div>
 
           <!-- Notification Bell con contador y popover interactivo -->

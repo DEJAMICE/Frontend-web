@@ -176,20 +176,34 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- 3 KPI Cards oficiales de Fuentes/Prototype Code.txt -->
+    <!-- 3 KPI Cards clicables (Hallazgo #5 de auditoría 6.4.2) -->
     <div class="kpi-grid mb-4">
-      <div class="kpi-card">
+      <div
+        class="kpi-card kpi-card--clickable"
+        role="button"
+        tabindex="0"
+        aria-label="Ir al historial de alertas SOS"
+        @click="router.push('/app/historial')"
+        @keyup.enter="router.push('/app/historial')"
+      >
         <div class="kpi-card-header">
-          <span class="kpi-label">Alertas Activas</span>
+          <span class="kpi-label">Alertas SOS Activas</span>
           <div class="kpi-icon-box danger-box">
             <i class="pi pi-shield"></i>
           </div>
         </div>
         <div class="kpi-number" :class="{ 'text-danger': activeAlertsCount > 0 }">{{ activeAlertsCount }}</div>
-        <div class="kpi-subtext">{{ activeAlertsCount === 0 ? 'Sin incidentes activos' : `${activeAlertsCount} en seguimiento activo` }}</div>
+        <div class="kpi-subtext">{{ activeAlertsCount === 0 ? 'Emergencias SOS abiertas: 0' : `${activeAlertsCount} emergencias SOS sin resolver` }}</div>
       </div>
 
-      <div class="kpi-card">
+      <div
+        class="kpi-card kpi-card--clickable"
+        role="button"
+        tabindex="0"
+        aria-label="Administrar red de contactos de confianza"
+        @click="router.push('/app/contactos')"
+        @keyup.enter="router.push('/app/contactos')"
+      >
         <div class="kpi-card-header">
           <span class="kpi-label">Contactos de Confianza</span>
           <div class="kpi-icon-box accent-box">
@@ -200,7 +214,14 @@ onMounted(async () => {
         <div class="kpi-subtext">En tu red de protección</div>
       </div>
 
-      <div class="kpi-card">
+      <div
+        class="kpi-card kpi-card--clickable"
+        role="button"
+        tabindex="0"
+        aria-label="Gestionar dispositivos IoT vinculados"
+        @click="router.push('/app/dispositivos')"
+        @keyup.enter="router.push('/app/dispositivos')"
+      >
         <div class="kpi-card-header">
           <span class="kpi-label">Dispositivos IoT</span>
           <div class="kpi-icon-box brand-box">
@@ -298,11 +319,11 @@ onMounted(async () => {
           <template #content>
             <div class="flex justify-content-between text-xs py-1 border-bottom-1 surface-border">
               <span class="text-600">Contactos Prioritarios:</span>
-              <span class="font-bold text-primary">3 Enlazados</span>
+              <span class="font-bold text-primary">{{ contactsCount }} Enlazados</span>
             </div>
             <div class="flex justify-content-between text-xs py-1 border-bottom-1 surface-border mt-1">
-              <span class="text-600">Dispositivo Físico BLE:</span>
-              <span class="font-bold text-green-600">SN-001 Conectado (88%)</span>
+              <span class="text-600">Dispositivos IoT:</span>
+              <span class="font-bold text-green-600">{{ devicesCount }} Vinculados</span>
             </div>
             <div class="flex justify-content-between text-xs py-1 mt-1">
               <span class="text-600">Algoritmo de Ruta:</span>
@@ -437,6 +458,14 @@ onMounted(async () => {
 .kpi-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(14, 68, 78, 0.06);
+}
+
+.kpi-card--clickable {
+  cursor: pointer;
+}
+
+.kpi-card--clickable:hover {
+  border-color: var(--accent, #00A896);
 }
 
 .kpi-card-header {

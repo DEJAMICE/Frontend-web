@@ -1,9 +1,11 @@
 <script setup>
 import { ref, watch, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import Toast from 'primevue/toast';
 import { useToast } from 'primevue/usetoast';
 import { reportsService } from '@/services';
 
+const router = useRouter();
 const toast = useToast();
 
 const activeTab = ref('comunitarios'); // 'comunitarios' | 'mis_reportes'
@@ -15,6 +17,7 @@ const reportsList = ref([]);
 
 const newReport = ref({
   type: 'Robo',
+  customCategory: '',
   address: '',
   description: ''
 });
@@ -80,23 +83,44 @@ async function handleRefute(report) {
   }
 }
 
+function goToMap(rep) {
+  router.push({
+    path: '/app/rutas',
+    query: {
+      focusLat: String(rep.latitude ?? -12.0864),
+      focusLng: String(rep.longitude ?? -77.0321),
+      focusLabel: rep.address || 'Incidente reportado',
+      focusCat: rep.secondaryCategory || rep.category || 'Incidente'
+    }
+  });
+}
+
 async function handleSaveReport() {
   if (!newReport.value.address?.trim() || !newReport.value.description?.trim()) {
     toast.add({ severity: 'warn', summary: 'Campos requeridos', detail: 'Ingresa la ubicación y descripción del incidente.', life: 3000 });
     return;
   }
 
+  if (newReport.value.type === 'Otro') {
+    const custom = newReport.value.customCategory.trim();
+    if (!custom) {
+      toast.add({ severity: 'warn', summary: 'Especifica el incidente', detail: 'Describe brevemente el tipo de peligro (máx. 40 caracteres).', life: 3000 });
+      return;
+    }
+  }
+
   isSaving.value = true;
   try {
     const created = await reportsService.createReport({
       category: newReport.value.type,
+      secondaryCategory: newReport.value.type === 'Otro' ? newReport.value.customCategory.trim().slice(0, 40) : null,
       address: newReport.value.address.trim(),
       description: newReport.value.description.trim()
     });
 
     reportsList.value.unshift(created);
     isReportModalOpen.value = false;
-    newReport.value = { type: 'Robo', address: '', description: '' };
+    newReport.value = { type: 'Robo', customCategory: '', address: '', description: '' };
     toast.add({ severity: 'success', summary: 'Incidente Reportado', detail: 'Tu alerta ha sido guardada y persistida en el backend.', life: 3500 });
   } catch (err) {
     toast.add({ severity: 'error', summary: 'Error', detail: err.message || 'Error al persistir el reporte en el backend.' });
@@ -205,7 +229,7 @@ async function handleSaveReport() {
           >
             <span>Refutar ✕</span>
           </button>
-          <button class="action-btn-map" @click="toast.add({ severity: 'info', summary: 'Ubicación', detail: rep.address, life: 2500 })">
+          <button class="action-btn-map" @click="goToMap(rep)">
             <span>Ver en mapa</span>
           </button>
         </div>
@@ -230,7 +254,20 @@ async function handleSaveReport() {
               <option value="Zona Oscura">Zona Oscura / Sin Alumbrado</option>
               <option value="Acoso">Acoso Callejero</option>
               <option value="Sospechoso">Persona o Vehículo Sospechoso</option>
+              <option value="Otro">Otro (especificar)</option>
             </select>
+          </div>
+
+          <div v-if="newReport.type === 'Otro'" class="form-group mb-3">
+            <label class="form-label">Especificar Tipo de Incidente (máx. 40 caracteres)</label>
+            <input
+              v-model="newReport.customCategory"
+              type="text"
+              maxlength="40"
+              class="form-input"
+              placeholder="Ej. Semáforo apagado / Vía cerrada"
+              required
+            />
           </div>
 
           <div class="form-group mb-3">

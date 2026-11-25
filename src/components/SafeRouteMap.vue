@@ -26,6 +26,14 @@ const props = defineProps({
   isNavigating: {
     type: Boolean,
     default: false
+  },
+  showIncidents: {
+    type: Boolean,
+    default: true
+  },
+  focusedIncident: {
+    type: Object,
+    default: null
   }
 });
 
@@ -37,6 +45,7 @@ let map = null;
 // Layer Groups
 let riskLayersGroup = null;
 let incidentLayersGroup = null;
+let focusedIncidentGroup = null;
 let safeRouteGroup = null;
 let altRouteGroup = null;
 let markersGroup = null;
@@ -252,9 +261,11 @@ async function renderRealStreetRoute() {
   }).bindPopup('<b>✅ Ruta Segura IA:</b> Trazado optimizado por vías iluminadas con cámaras y patrullaje.');
   safeRouteGroup.addLayer(safePolyline);
 
-  // Ajustar vista del mapa
+  // Ajustar vista del mapa (si no hay un incidente enfocado explícitamente)
   const activePolyline = isSafeActive ? safePolyline : altPolyline;
-  map.fitBounds(activePolyline.getBounds(), { padding: [50, 50] });
+  if (!props.focusedIncident) {
+    map.fitBounds(activePolyline.getBounds(), { padding: [50, 50] });
+  }
 }
 
 function renderRiskZones() {
@@ -280,7 +291,10 @@ function renderRiskZones() {
 }
 
 function renderIncidents() {
+  if (!incidentLayersGroup) return;
   incidentLayersGroup.clearLayers();
+  if (!props.showIncidents) return;
+
   incidentsData.forEach(inc => {
     const iconHtml = inc.isSafe
       ? `<div style="background:#10B981; color:white; border-radius:50%; width:28px; height:28px; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,0.25);"><i class="pi pi-shield" style="font-size:14px;"></i></div>`
@@ -353,6 +367,34 @@ function stopNavigationSimulation() {
   }
 }
 
+function renderFocusedIncident() {
+  if (!focusedIncidentGroup || !map) return;
+  focusedIncidentGroup.clearLayers();
+  if (!props.focusedIncident) return;
+
+  const { lat, lng, label, category } = props.focusedIncident;
+  const focusIcon = L.divIcon({
+    html: `<div style="background:#D97706; color:white; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,0.35); border:3px solid white;"><i class="pi pi-exclamation-circle" style="font-size:17px;"></i></div>`,
+    className: 'custom-focus-incident-icon',
+    iconSize: [36, 36],
+    iconAnchor: [18, 18]
+  });
+
+  const marker = L.marker([lat, lng], { icon: focusIcon })
+    .bindPopup(`<b>⚠️ ${category || 'Incidente'}:</b><br/>${label || 'Ubicación reportada'}`);
+  focusedIncidentGroup.addLayer(marker);
+  map.setView([lat, lng], 16, { animate: true });
+  marker.openPopup();
+}
+
+watch(() => props.showIncidents, () => {
+  renderIncidents();
+});
+
+watch(() => props.focusedIncident, () => {
+  renderFocusedIncident();
+}, { deep: true });
+
 watch([() => props.origin, () => props.destination, () => props.travelMode, () => props.activeRoute], () => {
   renderRealStreetRoute();
 }, { deep: true });
@@ -376,6 +418,7 @@ onMounted(() => {
 
   riskLayersGroup = L.layerGroup().addTo(map);
   incidentLayersGroup = L.layerGroup().addTo(map);
+  focusedIncidentGroup = L.layerGroup().addTo(map);
   altRouteGroup = L.layerGroup().addTo(map);
   safeRouteGroup = L.layerGroup().addTo(map);
   markersGroup = L.layerGroup().addTo(map);
@@ -388,6 +431,7 @@ onMounted(() => {
   renderRiskZones();
   renderIncidents();
   renderRealStreetRoute();
+  renderFocusedIncident();
 });
 
 onBeforeUnmount(() => {
