@@ -1,1 +1,0 @@
-import{Q as a}from"./index-D5JxyvhQ.js";import"./mockData-CRrWuDe8.js";const c={async getContacts(){return(await a.get("/contacts")).data},async addContact(t){return(await a.post("/contacts",t)).data},async updateContact(t,s){return(await a.put(`/contacts/${t}`,s)).data},async deleteContact(t){return(await a.delete(`/contacts/${t}`)).data}};export{c};
