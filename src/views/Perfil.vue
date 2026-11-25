@@ -316,7 +316,7 @@ const saveExperimentPreferences = async () => {
       </Card>
 
       <Card class="profile-card">
-        <template #title>Privacidad y Preferencias Experimentales</template>
+        <template #title>Privacidad y Alertas</template>
         <template #content>
           <form @submit.prevent="saveExperimentPreferences" class="p-fluid">
             <div class="field flex align-items-center gap-2">
@@ -327,12 +327,12 @@ const saveExperimentPreferences = async () => {
                 style="width: 18px; height: 18px; cursor: pointer;"
               />
               <label for="consentToggle" class="m-0" style="cursor: pointer;">
-                Participar en mejoras del producto (analítica seudonimizada, Ley N.º 29733)
+                Participar en mejoras del producto (analítica anónima)
               </label>
             </div>
 
             <div v-if="isConfigurableCountdown" class="field">
-              <label for="countdownSelect">Cuenta regresiva de alertas automáticas (EXP-01)</label>
+              <label for="countdownSelect">Cuenta regresiva de alertas automáticas</label>
               <Dropdown
                 id="countdownSelect"
                 v-model="privacyForm.autoAlertCountdownSeconds"
