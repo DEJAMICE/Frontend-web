@@ -132,64 +132,158 @@ const fallbackSafeRoute = [
   [-12.0945, -77.0480]
 ];
 
-// Fetch Real Street Routes according to specific Transport Profile
+// Distancia aproximada en metros entre dos coordenadas (Haversine)
+function distanceMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// Evalúa exposición de una ruta a las zonas de riesgo (menor puntaje = más segura)
+function evaluateRouteRisk(coords) {
+  let penalty = 0;
+  const touchedZones = new Set();
+
+  for (const [lat, lng] of coords) {
+    for (const zone of riskZonesData) {
+      const dist = distanceMeters(lat, lng, zone.lat, zone.lng);
+      const buffer = zone.type === 'HIGH_RISK' ? zone.radius + 35 : zone.radius;
+      if (dist <= buffer) {
+        touchedZones.add(zone.name);
+        penalty += zone.type === 'HIGH_RISK' ? 1000 : 120;
+      }
+    }
+  }
+
+  return {
+    penalty,
+    touchedHighRisk: riskZonesData.some((z) => {
+      if (z.type !== 'HIGH_RISK') return false;
+      return coords.some(([lat, lng]) => distanceMeters(lat, lng, z.lat, z.lng) <= z.radius + 35);
+    }),
+    touchedCount: touchedZones.size
+  };
+}
+
+// Calcula waypoints de desvío reales al norte y sur de la zona crítica intersectada
+function buildBypassCandidates(origin, dest, zone) {
+  const offsetDeg = (zone.radius + 170) / 111320;
+  const midLng = (origin.lng + dest.lng) / 2;
+  return [
+    { lat: zone.lat + offsetDeg, lng: (zone.lng + midLng) / 2 },
+    { lat: zone.lat - offsetDeg, lng: (zone.lng + midLng) / 2 },
+    { lat: zone.lat + offsetDeg, lng: zone.lng },
+    { lat: zone.lat - offsetDeg, lng: zone.lng }
+  ];
+}
+
+function computeModeDuration(distanceM, mode) {
+  if (mode === 'walking') return Math.max(120, Math.round(distanceM / 1.33));
+  if (mode === 'cycling') return Math.max(90, Math.round(distanceM / 4.44));
+  return Math.max(60, Math.round(distanceM / 8.88));
+}
+
+// Fetch Real Street Routes avoiding HIGH_RISK zones
 async function fetchOsrmRoute(origin, dest, mode = 'walking') {
-  // URLs primarias según perfil oficial de OpenStreetMap
   const serviceEndpoint = mode === 'walking'
     ? 'https://routing.openstreetmap.de/routed-foot/route/v1/driving'
     : mode === 'cycling'
       ? 'https://routing.openstreetmap.de/routed-bike/route/v1/driving'
       : 'https://routing.openstreetmap.de/routed-car/route/v1/driving';
 
-  const primaryUrl = `${serviceEndpoint}/${origin.lng},${origin.lat};${dest.lng},${dest.lat}?overview=full&geometries=geojson&alternatives=true`;
-  const fallbackUrl = `https://router.project-osrm.org/route/v1/${mode === 'driving' ? 'driving' : 'foot'}/${origin.lng},${origin.lat};${dest.lng},${dest.lat}?overview=full&geometries=geojson&alternatives=true`;
+  const fallbackEndpoint = `https://router.project-osrm.org/route/v1/${mode === 'driving' ? 'driving' : 'foot'}`;
 
-  for (const url of [primaryUrl, fallbackUrl]) {
-    try {
-      const res = await fetch(url);
-      if (!res.ok) continue;
-      const data = await res.json();
-
-      if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
-        const primaryRoute = data.routes[0];
-        const altRoute = data.routes.length > 1 ? data.routes[1] : null;
-
-        const primaryCoords = primaryRoute.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
-        const altCoords = altRoute ? altRoute.geometry.coordinates.map(([lng, lat]) => [lat, lng]) : [];
-
-        // Duración precisa según modo de transporte
-        let computedDuration = primaryRoute.duration;
-        if (mode === 'walking') {
-          // A pie: ~4.8 km/h = 80 m/min
-          computedDuration = Math.max(120, Math.round(primaryRoute.distance / 1.33));
-        } else if (mode === 'cycling') {
-          // En bicicleta: ~16 km/h = 266 m/min
-          computedDuration = Math.max(90, Math.round(primaryRoute.distance / 4.44));
-        } else {
-          // Vehículo: red vial con semáforos (~32 km/h)
-          computedDuration = Math.max(60, Math.round(primaryRoute.distance / 8.88));
+  async function queryOsrm(waypoints) {
+    const coordStr = waypoints.map((w) => `${w.lng},${w.lat}`).join(';');
+    const urls = [
+      `${serviceEndpoint}/${coordStr}?overview=full&geometries=geojson&alternatives=true`,
+      `${fallbackEndpoint}/${coordStr}?overview=full&geometries=geojson&alternatives=true`
+    ];
+    for (const url of urls) {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) continue;
+        const data = await res.json();
+        if (data.code === 'Ok' && Array.isArray(data.routes) && data.routes.length > 0) {
+          return data.routes.map((r) => {
+            const coords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+            return {
+              coords,
+              distance: r.distance,
+              risk: evaluateRouteRisk(coords)
+            };
+          });
         }
-
-        return {
-          safePath: primaryCoords,
-          altPath: altCoords.length > 0 ? altCoords : generateAlternativePath(primaryCoords),
-          distanceMeters: primaryRoute.distance,
-          durationSeconds: computedDuration
-        };
+      } catch (err) {
+        // intentar siguiente endpoint
       }
-    } catch (err) {
-      // Intentar fallback
     }
+    return [];
+  }
+
+  const directRoutes = await queryOsrm([origin, dest]);
+  if (directRoutes.length > 0) {
+    let candidates = [...directRoutes];
+
+    // Si las rutas directas cruzan una zona roja, calcular desvíos por calles seguras
+    const bestDirect = [...candidates].sort((a, b) => a.risk.penalty - b.risk.penalty)[0];
+    if (bestDirect.risk.touchedHighRisk) {
+      const blockingZone = riskZonesData.find(
+        (z) =>
+          z.type === 'HIGH_RISK' &&
+          bestDirect.coords.some(([lat, lng]) => distanceMeters(lat, lng, z.lat, z.lng) <= z.radius + 35)
+      );
+
+      if (blockingZone) {
+        const bypassPoints = buildBypassCandidates(origin, dest, blockingZone);
+        const bypassResults = await Promise.all(
+          bypassPoints.map((wp) => queryOsrm([origin, wp, dest]))
+        );
+        candidates.push(...bypassResults.flat());
+      }
+    }
+
+    // Ordenar candidatas priorizando evitar zonas de riesgo (luego menor distancia)
+    const sortedBySafety = [...candidates].sort((a, b) => {
+      if (a.risk.penalty !== b.risk.penalty) return a.risk.penalty - b.risk.penalty;
+      return a.distance - b.distance;
+    });
+
+    const safest = sortedBySafety[0];
+    const alternative =
+      directRoutes.find((r) => r.coords !== safest.coords) ||
+      sortedBySafety[1] ||
+      { coords: generateAlternativePath(safest.coords), distance: safest.distance };
+
+    const zonesAvoided = Math.max(1, riskZonesData.length - safest.risk.touchedCount);
+    const safetyScore = safest.risk.touchedHighRisk
+      ? 72
+      : Math.max(82, 98 - safest.risk.touchedCount * 5);
+
+    return {
+      safePath: safest.coords,
+      altPath: alternative.coords,
+      distanceMeters: safest.distance,
+      durationSeconds: computeModeDuration(safest.distance, mode),
+      safetyScore,
+      zonesAvoided
+    };
   }
 
   // Fallback si la red está offline
   const dist = 2450;
-  const dur = mode === 'walking' ? 1800 : mode === 'cycling' ? 600 : 360;
   return {
     safePath: fallbackSafeRoute,
     altPath: generateAlternativePath(fallbackSafeRoute),
     distanceMeters: dist,
-    durationSeconds: dur
+    durationSeconds: computeModeDuration(dist, mode),
+    safetyScore: 94,
+    zonesAvoided: 2
   };
 }
 
@@ -238,8 +332,8 @@ async function renderRealStreetRoute() {
   emit('routeCalculated', {
     distanceKm: (routeData.distanceMeters / 1000).toFixed(1),
     durationMin: Math.round(routeData.durationSeconds / 60),
-    safetyScore: 94,
-    zonesAvoided: 2
+    safetyScore: routeData.safetyScore ?? 94,
+    zonesAvoided: routeData.zonesAvoided ?? 2
   });
 
   // 4. Dibujar Ruta Alternativa (Línea discontinua)
